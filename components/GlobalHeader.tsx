@@ -12,6 +12,9 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAdaptiveTheme } from '../hooks/useAdaptiveTheme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
 
@@ -27,6 +30,7 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
   currentScreen = 'Home',
 }) => {
   const { theme, isDarkMode } = useAdaptiveTheme();
+  const insets = useSafeAreaInsets();
   const menuIconRotation = useRef(new Animated.Value(0)).current;
   const logoScale = useRef(new Animated.Value(1)).current;
   const phaseIndicatorScale = useRef(new Animated.Value(1)).current;
@@ -164,30 +168,46 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
           />
         </View>
 
-        <View style={styles.headerContent}>
-          {/* Botão Menu */}
-          <TouchableOpacity
-            style={[
-              styles.menuButton,
-              { 
-                backgroundColor: `${theme.colors.primary}20`,
-                borderColor: `${theme.colors.primary}30`,
-              }
-            ]}
-            onPress={onMenuPress}
-            activeOpacity={0.7}
-          >
-            <Animated.View
+        <View style={[styles.headerContent, { paddingTop: insets.top + 10 }]}>
+          {/* Botão Menu / Voltar */}
+          {currentScreen === 'home' ? (
+            <TouchableOpacity
               style={[
-                styles.menuIconContainer,
-                { transform: [{ rotate: menuIconRotate }] },
+                styles.menuButton,
+                { 
+                  backgroundColor: `${theme.colors.primary}20`,
+                  borderColor: `${theme.colors.primary}30`,
+                }
               ]}
+              onPress={onMenuPress}
+              activeOpacity={0.7}
             >
-              <View style={[styles.menuLine, { backgroundColor: theme.colors.primary }]} />
-              <View style={[styles.menuLine, { backgroundColor: theme.colors.primary }]} />
-              <View style={[styles.menuLine, { backgroundColor: theme.colors.primary }]} />
-            </Animated.View>
-          </TouchableOpacity>
+              <Animated.View
+                style={[
+                  styles.menuIconContainer,
+                  { transform: [{ rotate: menuIconRotate }] },
+                ]}
+              >
+                <View style={[styles.menuLine, { backgroundColor: theme.colors.primary }]} />
+                <View style={[styles.menuLine, { backgroundColor: theme.colors.primary }]} />
+                <View style={[styles.menuLine, { backgroundColor: theme.colors.primary }]} />
+              </Animated.View>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[
+                styles.menuButton,
+                { 
+                  backgroundColor: `${theme.colors.primary}20`,
+                  borderColor: `${theme.colors.primary}30`,
+                }
+              ]}
+              onPress={() => router.replace('/home')}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="arrow-back" size={24} color={theme.colors.primary} />
+            </TouchableOpacity>
+          )}
 
           {/* Logo Central */}
           <View style={styles.logoContainer}>

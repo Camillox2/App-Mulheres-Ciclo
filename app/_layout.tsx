@@ -1,7 +1,7 @@
 // app/_layout.tsx - VERSÃO ATUALIZADA COM TEMA DARK
 import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { Stack, useSegments } from 'expo-router';
+import { Stack, useSegments, router } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { View, StyleSheet } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';

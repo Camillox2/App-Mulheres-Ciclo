@@ -63,6 +63,7 @@ interface ProgressBarProps {
   animated?: boolean;
   gradient?: boolean;
   style?: ViewStyle;
+  color?: string;
 }
 
 interface LoadingSpinnerProps {

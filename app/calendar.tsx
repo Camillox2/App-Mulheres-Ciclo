@@ -431,9 +431,9 @@ export default function CalendarScreen() {
       } catch (error) {
         console.error('Erro ao carregar dados:', error);
       } finally {
+        setIsLoading(false); // Garante que o loading seja desativado
         // Usa InteractionManager para melhor performance
         InteractionManager.runAfterInteractions(() => {
-          setIsLoading(false);
           Animated.timing(fadeAnim, {
             toValue: 1,
             duration: 400,
