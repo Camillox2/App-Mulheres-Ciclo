@@ -1,603 +1,928 @@
-// app/analytics.tsx
-import React from 'react';
+// app/analytics-enhanced.tsx - VERSÃO MELHORADA COMPLETA
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
-    View,
-    Text,
-    StyleSheet,
-    TouchableOpacity,
-    ScrollView,
-    SafeAreaView,
-    Dimensions,
-    ViewStyle,
-    TextStyle,
-    ImageStyle
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  SafeAreaView,
+  Animated,
+  RefreshControl,
+  Alert,
+  Share,
+  Dimensions,
+  ViewStyle,
+  TextStyle,
 } from 'react-native';
 import { router } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAdaptiveTheme } from '../hooks/useAdaptiveTheme';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import moment from 'moment';
-import { Card, ProgressBar, Button } from '../components/ui';
+import { useAnalyticsData, useRealTimeStats, FilterOptions } from '../hooks/useAnalyticsData';
+import {
+  AnalyticsCard,
+  StatCard,
+  InsightCard,
+  MoodChart,
+  TrendChart,
+  CycleComparison,
+  QuickStatsOverview,
+} from '../components/analytics/VisualizationComponents';
 import { DESIGN_SYSTEM } from '../constants/desingSystem';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
-// --- TIPOS E INTERFACES ---
+type FilterPeriod = 'all' | 'monthly' | 'quarterly' | 'yearly';
+type SelectedTab = 'overview' | 'trends' | 'patterns' | 'insights';
+type ViewMode = 'cards' | 'charts' | 'detailed';
 
-interface Record {
-  id: string;
-  date: string;
-  type: 'symptom' | 'mood' | 'activity' | 'period' | 'note';
-  data: any;
+interface AnimatedHeaderProps {
+  scrollY: Animated.Value;
+  theme: any;
+  refreshing: boolean;
+  onRefresh: () => void;
 }
 
-interface CycleData {
-  lastPeriodDate: string;
-  averageCycleLength: number;
-  averagePeriodLength: number;
+interface FilterSectionProps {
+  filterPeriod: FilterPeriod;
+  onFilterChange: (filter: FilterPeriod) => void;
+  theme: any;
 }
 
-interface RecentCycle {
-  start: string;
-  length: number;
+interface TabSectionProps {
+  selectedTab: SelectedTab;
+  onTabChange: (tab: SelectedTab) => void;
+  theme: any;
 }
 
-interface AnalyticsData {
-  totalRecords: number;
-  mostCommonSymptoms: Array<{ name: string; count: number; emoji: string }>;
-  averageCycleLength: number;
-  cycleLengthVariation: number;
-  periodFrequency: number;
-  moodDistribution: Array<{ mood: string; count: number; percentage: number }>;
-  recentCycles: RecentCycle[];
-  nextPeriodPrediction: string | null;
-}
+// ==================== COMPONENTES AUXILIARES ====================
 
-type FilterPeriod = 'all' | 'monthly' | 'yearly';
-type SelectedTab = 'overview' | 'symptoms' | 'cycles';
+const AnimatedHeader: React.FC<AnimatedHeaderProps> = ({ scrollY, theme, refreshing, onRefresh }) => {
+  const headerHeight = scrollY.interpolate({
+    inputRange: [0, 100],
+    outputRange: [120, 80],
+    extrapolate: 'clamp',
+  });
 
-// --- HOOK CUSTOMIZADO PARA LÓGICA DE DADOS ---
-
-const useAnalyticsData = (filterPeriod: FilterPeriod) => {
-  const [analytics, setAnalytics] = React.useState<AnalyticsData | null>(null);
-  const [loading, setLoading] = React.useState(true);
-
-  const calculateRecentCycles = (periodRecords: Record[]): { recentCycles: RecentCycle[], cycleLengths: number[] } => {
-    if (periodRecords.length < 2) return { recentCycles: [], cycleLengths: [] };
-
-    const sortedPeriods = [...periodRecords].sort((a, b) => moment(a.date).diff(moment(b.date)));
-    const cycleStarts: moment.Moment[] = [];
-
-    sortedPeriods.forEach((record, index) => {
-      const recordDate = moment(record.date);
-      if (index === 0) {
-        cycleStarts.push(recordDate);
-      } else {
-        const prevDate = moment(sortedPeriods[index - 1].date);
-        if (recordDate.diff(prevDate, 'days') > 1) {
-          cycleStarts.push(recordDate);
-        }
-      }
-    });
-
-    const recentCycles: RecentCycle[] = [];
-    const cycleLengths: number[] = [];
-
-    for (let i = 0; i < cycleStarts.length - 1; i++) {
-      const length = cycleStarts[i + 1].diff(cycleStarts[i], 'days');
-      cycleLengths.push(length);
-      recentCycles.push({
-        start: cycleStarts[i].format('DD/MM/YYYY'),
-        length,
-      });
-    }
-
-    return { recentCycles: recentCycles.reverse(), cycleLengths };
-  };
-
-  React.useEffect(() => {
-    const loadAnalytics = async () => {
-      setLoading(true);
-      try {
-        const recordsData = await AsyncStorage.getItem('dailyRecords');
-        const allRecords: Record[] = recordsData ? JSON.parse(recordsData) : [];
-        const now = moment();
-
-        const filteredRecords = allRecords.filter(r => {
-          if (filterPeriod === 'monthly') return moment(r.date).isSame(now, 'month');
-          if (filterPeriod === 'yearly') return moment(r.date).isSame(now, 'year');
-          return true;
-        });
-
-        const symptomRecords = filteredRecords.filter(r => r.type === 'symptom');
-        const symptomCounts = symptomRecords.reduce((acc, { data }) => {
-          acc[data.name] = {
-            name: data.name,
-            emoji: data.emoji,
-            count: (acc[data.name]?.count || 0) + 1,
-          };
-          return acc;
-        }, {} as { [key: string]: { name: string; emoji: string; count: number } });
-
-        const mostCommonSymptoms = Object.values(symptomCounts)
-          .sort((a, b) => b.count - a.count)
-          .slice(0, 5);
-
-        const moodSymptoms = ['Feliz', 'Triste', 'Ansiosa', 'Irritada', 'Energética', 'Romântica'];
-        const moodRecords = symptomRecords.filter(s => moodSymptoms.includes(s.data.name));
-        const totalMoodRecords = moodRecords.length;
-        const moodCounts = moodRecords.reduce((acc, { data }) => {
-          acc[data.name] = (acc[data.name] || 0) + 1;
-          return acc;
-        }, {} as { [key: string]: number });
-
-        const moodDistribution = Object.entries(moodCounts).map(([mood, count]) => ({
-          mood,
-          count,
-          percentage: totalMoodRecords > 0 ? Math.round((count / totalMoodRecords) * 100) : 0,
-        }));
-
-        const periodRecords = allRecords.filter(r => r.type === 'period');
-        const periodFrequency = new Set(periodRecords.map(r => moment(r.date).format('YYYY-MM'))).size;
-
-        const { recentCycles, cycleLengths } = calculateRecentCycles(periodRecords);
-        const averageCycleLength = cycleLengths.length > 0
-            ? Math.round(cycleLengths.reduce((a, b) => a + b, 0) / cycleLengths.length)
-            : 28;
-
-        const cycleLengthVariation = cycleLengths.length > 1
-            ? Math.round(Math.sqrt(cycleLengths.map(x => Math.pow(x - averageCycleLength, 2)).reduce((a, b) => a + b) / cycleLengths.length))
-            : 0;
-
-        const lastPeriodDate = periodRecords.length > 0
-            ? moment.max(periodRecords.map(r => moment(r.date)))
-            : null;
-
-        const nextPeriodPrediction = lastPeriodDate
-            ? lastPeriodDate.clone().add(averageCycleLength, 'days').format('DD/MM/YYYY')
-            : null;
-
-        setAnalytics({
-          totalRecords: filteredRecords.length,
-          mostCommonSymptoms,
-          averageCycleLength,
-          cycleLengthVariation,
-          periodFrequency,
-          moodDistribution,
-          recentCycles,
-          nextPeriodPrediction,
-        });
-
-      } catch (error) {
-        console.error('Erro ao carregar analytics:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadAnalytics();
-  }, [filterPeriod]);
-
-  return { analytics, loading };
-};
-
-// --- INTERFACES DE PROPS PARA COMPONENTES DE UI ---
-
-interface TabComponentProps {
-    analytics: AnalyticsData;
-    theme: any;
-    styles: ReturnType<typeof getStyles>;
-}
-
-// --- COMPONENTES DE UI ---
-
-const OverviewTab: React.FC<TabComponentProps> = ({ analytics, theme, styles }) => (
-  <>
-    <View style={styles.statsCards}>
-      <Card style={styles.statsCard} variant="minimal">
-        <Text style={styles.statsCardEmoji}>📝</Text>
-        <Text style={[styles.statsCardValue, { color: theme.colors.primary }]}>{analytics.totalRecords}</Text>
-        <Text style={[styles.statsCardLabel, { color: theme.colors.secondary }]}>Total de Registros</Text>
-      </Card>
-      <Card style={styles.statsCard} variant="minimal">
-        <Text style={styles.statsCardEmoji}>📅</Text>
-        <Text style={[styles.statsCardValue, { color: theme.colors.primary }]}>{analytics.averageCycleLength}</Text>
-        <Text style={[styles.statsCardLabel, { color: theme.colors.secondary }]}>Média do Ciclo</Text>
-      </Card>
-      <Card style={styles.statsCard} variant="minimal">
-        <Text style={styles.statsCardEmoji}>🌸</Text>
-        <Text style={[styles.statsCardValue, { color: theme.colors.primary }]}>{analytics.periodFrequency}</Text>
-        <Text style={[styles.statsCardLabel, { color: theme.colors.secondary }]}>Períodos Registrados</Text>
-      </Card>
-    </View>
-    {analytics.moodDistribution.length > 0 && (
-      <Card style={styles.section} variant="default">
-        <Text style={[styles.sectionTitle, { color: theme.colors.primary }]}>📊 Distribuição de Humor</Text>
-        {analytics.moodDistribution.map(({ mood, percentage }) => (
-          <View key={mood} style={styles.moodItem}>
-            <Text style={[styles.moodLabel, { color: theme.colors.primary }]}>{mood}</Text>
-            <View style={styles.progressBarContainer}>
-              <ProgressBar progress={percentage / 100} height={DESIGN_SYSTEM.spacing.xs} style={{ flex: 1, marginRight: DESIGN_SYSTEM.spacing.sm }}/>
-              <Text style={[styles.progressText, { color: theme.colors.primary }]}>{percentage}%</Text>
-            </View>
-          </View>
-        ))}
-      </Card>
-    )}
-  </>
-);
-
-const SymptomsTab: React.FC<TabComponentProps> = ({ analytics, theme, styles }) => (
-  <Card style={styles.section} variant="default">
-    <Text style={[styles.sectionTitle, { color: theme.colors.primary }]}>🔝 Sintomas Mais Comuns</Text>
-    {analytics.mostCommonSymptoms.length > 0 ? (
-      analytics.mostCommonSymptoms.map((symptom: { name: string; emoji: string; count: number }, index: number) => (
-        <View key={symptom.name} style={styles.symptomItem}>
-          <View style={styles.symptomInfo}>
-            <Text style={styles.symptomEmoji}>{symptom.emoji}</Text>
-            <Text style={[styles.symptomName, { color: theme.colors.primary }]}>{symptom.name}</Text>
-          </View>
-          <View style={styles.symptomStats}>
-            <Text style={[styles.symptomCount, { color: theme.colors.secondary }]}>{symptom.count} vezes</Text>
-            <View style={[styles.symptomRank, { backgroundColor: theme.colors.primary }]}>
-              <Text style={styles.symptomRankText}>#{index + 1}</Text>
-            </View>
-          </View>
-        </View>
-      ))
-    ) : (
-      <Text style={[styles.emptyText, { color: theme.colors.secondary }]}>Nenhum sintoma registrado neste período.</Text>
-    )}
-  </Card>
-);
-
-const CyclesTab: React.FC<TabComponentProps> = ({ analytics, theme, styles }) => (
-    <>
-        <Card style={styles.section} variant="default">
-            <Text style={[styles.sectionTitle, { color: theme.colors.primary }]}>📈 Previsão e Informações</Text>
-            <View style={styles.cycleInfo}>
-                <View style={styles.cycleInfoItem}>
-                    <Text style={[styles.cycleInfoLabel, { color: theme.colors.secondary }]}>Próximo Período</Text>
-                    <Text style={[styles.cycleInfoValue, { color: theme.colors.primary }]}>{analytics.nextPeriodPrediction || 'N/A'}</Text>
-                </View>
-                <View style={styles.cycleInfoItem}>
-                    <Text style={[styles.cycleInfoLabel, { color: theme.colors.secondary }]}>Duração Média</Text>
-                    <Text style={[styles.cycleInfoValue, { color: theme.colors.primary }]}>{analytics.averageCycleLength} dias</Text>
-                </View>
-                <View style={styles.cycleInfoItem}>
-                    <Text style={[styles.cycleInfoLabel, { color: theme.colors.secondary }]}>Variação</Text>
-                    <Text style={[styles.cycleInfoValue, { color: theme.colors.primary }]}>±{analytics.cycleLengthVariation} dias</Text>
-                </View>
-            </View>
-        </Card>
-        <Card style={styles.section} variant="default">
-            <Text style={[styles.sectionTitle, { color: theme.colors.primary }]}>🔄 Histórico de Ciclos</Text>
-            {analytics.recentCycles.length > 0 ? (
-                analytics.recentCycles.map((cycle: RecentCycle, index: number) => (
-                    <View key={index} style={styles.cycleItem}>
-                        <Text style={[styles.cycleDate, { color: theme.colors.primary }]}>{moment(cycle.start, 'DD/MM/YYYY').format('DD/MM')}</Text>
-                        <View style={styles.cycleLengthContainer}>
-                            <Text style={[styles.cycleLength, { color: theme.colors.secondary }]}>{cycle.length} dias</Text>
-                            <ProgressBar progress={cycle.length / 45} height={DESIGN_SYSTEM.spacing.xs} style={{ flex: 1 }}/>
-                        </View>
-                    </View>
-                ))
-            ) : (
-                <Text style={[styles.emptyText, { color: theme.colors.secondary }]}>Dados insuficientes para exibir o histórico de ciclos.</Text>
-            )}
-        </Card>
-    </>
-);
-
-
-// --- COMPONENTE PRINCIPAL ---
-
-export default function AnalyticsScreen() {
-  const { theme } = useAdaptiveTheme();
-  const [selectedTab, setSelectedTab] = React.useState<SelectedTab>('overview');
-  const [filterPeriod, setFilterPeriod] = React.useState<FilterPeriod>('all');
-  const { analytics, loading } = useAnalyticsData(filterPeriod);
-
-  if (!theme) return null;
-
-  const styles = getStyles(theme);
-
-  const renderContent = () => {
-    if (loading) {
-      return (
-        <View style={styles.loadingContainer}>
-          <Text style={{color: theme.colors.primary}}>Carregando estatísticas...</Text>
-        </View>
-      );
-    }
-    if (!analytics) {
-      return (
-         <View style={styles.loadingContainer}>
-          <Text style={{color: theme.colors.secondary}}>Não foi possível carregar os dados.</Text>
-        </View>
-      );
-    }
-
-    switch(selectedTab) {
-      case 'overview': return <OverviewTab analytics={analytics} theme={theme} styles={styles} />;
-      case 'symptoms': return <SymptomsTab analytics={analytics} theme={theme} styles={styles} />;
-      case 'cycles': return <CyclesTab analytics={analytics} theme={theme} styles={styles} />;
-      default: return null;
-    }
-  };
+  const titleOpacity = scrollY.interpolate({
+    inputRange: [0, 50],
+    outputRange: [1, 0.8],
+    extrapolate: 'clamp',
+  });
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Text style={[styles.backButtonText, { color: theme.colors.primary }]}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Estatísticas</Text>
-        <View style={styles.headerSpacer} />
-      </View>
+    <Animated.View style={[styles.animatedHeader, { height: headerHeight }]}>
+      <LinearGradient
+        colors={theme.colors.gradients.primary as [string, string]}
+        style={styles.headerGradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        <SafeAreaView style={styles.headerSafeArea}>
+          <View style={styles.headerContent}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => router.back()}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Text style={styles.backButtonText}>←</Text>
+            </TouchableOpacity>
+            
+            <Animated.View style={[styles.headerTitleContainer, { opacity: titleOpacity }]}>
+              <Text style={styles.headerTitle}>Analytics Avançado</Text>
+              <Text style={styles.headerSubtitle}>Insights do seu ciclo</Text>
+            </Animated.View>
 
-      <View style={styles.tabContainer}>
-        {[
-          { key: 'overview', label: 'Visão Geral', emoji: '📊' },
-          { key: 'symptoms', label: 'Sintomas', emoji: '😔' },
-          { key: 'cycles', label: 'Ciclos', emoji: '🔄' },
-        ].map((tab) => (
+            <TouchableOpacity style={styles.shareButton} onPress={onRefresh}>
+              <Text style={styles.shareIcon}>{refreshing ? '🔄' : '📊'}</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </LinearGradient>
+    </Animated.View>
+  );
+};
+
+const FilterSection: React.FC<FilterSectionProps> = ({ filterPeriod, onFilterChange, theme }) => {
+  const filterOptions = [
+    { key: 'all', label: 'Tudo', icon: '🌍' },
+    { key: 'monthly', label: 'Mês', icon: '📅' },
+    { key: 'quarterly', label: 'Trimestre', icon: '🗓️' },
+    { key: 'yearly', label: 'Ano', icon: '📆' },
+  ] as const;
+
+  return (
+    <View style={styles.filterSection}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScrollContent}>
+        {filterOptions.map((filter) => (
+          <TouchableOpacity
+            key={filter.key}
+            style={[
+              styles.filterButton,
+              {
+                backgroundColor: filterPeriod === filter.key ? theme.colors.primary : theme.colors.surface,
+                borderColor: theme.colors.primary,
+              },
+            ]}
+            onPress={() => onFilterChange(filter.key)}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.filterIcon}>{filter.icon}</Text>
+            <Text
+              style={[
+                styles.filterText,
+                {
+                  color: filterPeriod === filter.key ? 'white' : theme.colors.text.primary,
+                },
+              ]}
+            >
+              {filter.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    </View>
+  );
+};
+
+const TabSection: React.FC<TabSectionProps> = ({ selectedTab, onTabChange, theme }) => {
+  const tabs = [
+    { key: 'overview', label: 'Visão Geral', icon: '📊' },
+    { key: 'trends', label: 'Tendências', icon: '📈' },
+    { key: 'patterns', label: 'Padrões', icon: '🔍' },
+    { key: 'insights', label: 'Insights', icon: '💡' },
+  ] as const;
+
+  return (
+    <View style={[styles.tabSection, { backgroundColor: theme.colors.surface }]}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabScrollContent}>
+        {tabs.map((tab) => (
           <TouchableOpacity
             key={tab.key}
-            style={[styles.tab, { backgroundColor: selectedTab === tab.key ? theme.colors.primary : theme.colors.surface }]}
-            onPress={() => setSelectedTab(tab.key as SelectedTab)}
+            style={[
+              styles.tab,
+              {
+                backgroundColor: selectedTab === tab.key ? `${theme.colors.primary}20` : 'transparent',
+                borderBottomColor: selectedTab === tab.key ? theme.colors.primary : 'transparent',
+              },
+            ]}
+            onPress={() => onTabChange(tab.key)}
+            activeOpacity={0.7}
           >
-            <Text style={styles.tabEmoji}>{tab.emoji}</Text>
-            <Text style={[styles.tabText, { color: selectedTab === tab.key ? 'white' : theme.colors.primary }]}>
+            <Text style={styles.tabIcon}>{tab.icon}</Text>
+            <Text
+              style={[
+                styles.tabText,
+                {
+                  color: selectedTab === tab.key ? theme.colors.primary : theme.colors.text.secondary,
+                  fontWeight: selectedTab === tab.key ? '600' : '500',
+                },
+              ]}
+            >
               {tab.label}
             </Text>
           </TouchableOpacity>
         ))}
-      </View>
-
-      <View style={styles.filterContainer}>
-        {[
-          { key: 'all', label: 'Tudo' },
-          { key: 'monthly', label: 'Mês' },
-          { key: 'yearly', label: 'Ano' },
-        ].map((filter) => (
-          <Button
-            key={filter.key}
-            title={filter.label}
-            onPress={() => setFilterPeriod(filter.key as FilterPeriod)}
-            variant={filterPeriod === filter.key ? 'primary' : 'secondary'}
-            size="sm"
-            style={styles.filterButton}
-          />
-        ))}
-      </View>
-
-      <ScrollView contentContainerStyle={styles.content}>
-        {renderContent()}
       </ScrollView>
-    </SafeAreaView>
+    </View>
+  );
+};
+
+// ==================== COMPONENTES DE CONTEÚDO ====================
+
+const OverviewContent: React.FC<{ analytics: any; theme: any }> = ({ analytics, theme }) => (
+  <>
+    <QuickStatsOverview analytics={analytics} />
+    
+    <AnalyticsCard title="📊 Distribuição de Humor" animationDelay={100}>
+      <MoodChart data={analytics.moodDistribution} interactive />
+    </AnalyticsCard>
+
+    <View style={styles.twoColumnGrid}>
+      <AnalyticsCard title="🔝 Top Sintomas" style={styles.halfCard} animationDelay={200}>
+        {analytics.mostCommonSymptoms.slice(0, 3).map((symptom: any, index: number) => (
+          <View key={symptom.name} style={styles.symptomRow}>
+            <Text style={styles.symptomEmoji}>{symptom.emoji}</Text>
+            <View style={styles.symptomInfo}>
+              <Text style={[styles.symptomName, { color: theme.colors.text.primary }]}>
+                {symptom.name}
+              </Text>
+              <Text style={[styles.symptomCount, { color: theme.colors.text.secondary }]}>
+                {symptom.count} vezes
+              </Text>
+            </View>
+            {symptom.trend !== 0 && (
+              <Text style={[styles.symptomTrend, { 
+                color: symptom.trend > 0 ? '#E74C3C' : '#2ECC71' 
+              }]}>
+                {symptom.trend > 0 ? '↗' : '↘'} {Math.abs(symptom.trend)}%
+              </Text>
+            )}
+          </View>
+        ))}
+      </AnalyticsCard>
+
+      <AnalyticsCard title="📅 Próximos Eventos" style={styles.halfCard} animationDelay={300}>
+        <View style={styles.predictionContainer}>
+          <View style={styles.predictionItem}>
+            <Text style={styles.predictionIcon}>🌸</Text>
+            <View>
+              <Text style={[styles.predictionLabel, { color: theme.colors.text.secondary }]}>
+                Próxima Menstruação
+              </Text>
+              <Text style={[styles.predictionValue, { color: theme.colors.primary }]}>
+                {analytics.nextPeriodPrediction || 'Calculando...'}
+              </Text>
+            </View>
+          </View>
+          
+          <View style={styles.predictionItem}>
+            <Text style={styles.predictionIcon}>⭐</Text>
+            <View>
+              <Text style={[styles.predictionLabel, { color: theme.colors.text.secondary }]}>
+                Regularidade
+              </Text>
+              <Text style={[styles.predictionValue, { color: theme.colors.primary }]}>
+                {analytics.cycleLengthVariation < 3 ? 'Alta' : 
+                 analytics.cycleLengthVariation < 7 ? 'Média' : 'Baixa'}
+              </Text>
+            </View>
+          </View>
+        </View>
+      </AnalyticsCard>
+    </View>
+  </>
+);
+
+const TrendsContent: React.FC<{ analytics: any; theme: any }> = ({ analytics, theme }) => (
+  <>
+    <AnalyticsCard title="📈 Tendência de Sintomas (30 dias)" animationDelay={100}>
+      <TrendChart data={analytics.timeSeriesData} type="symptoms" />
+    </AnalyticsCard>
+
+    <AnalyticsCard title="😊 Tendência de Humor (30 dias)" animationDelay={200}>
+      <TrendChart data={analytics.timeSeriesData} type="mood" />
+    </AnalyticsCard>
+
+    <AnalyticsCard title="🔄 Comparação de Ciclos" animationDelay={300}>
+      <CycleComparison data={analytics.cycleComparison} />
+    </AnalyticsCard>
+  </>
+);
+
+const PatternsContent: React.FC<{ analytics: any; theme: any }> = ({ analytics, theme }) => (
+  <>
+    <AnalyticsCard title="🕐 Padrões Temporais" animationDelay={100}>
+      <View style={styles.patternsGrid}>
+        <View style={styles.patternCard}>
+          <Text style={styles.patternIcon}>📊</Text>
+          <Text style={[styles.patternLabel, { color: theme.colors.text.secondary }]}>
+            Registros por tipo
+          </Text>
+          {Object.entries(analytics.recordsByType).map(([type, count]: [string, any]) => (
+            <View key={type} style={styles.patternRow}>
+              <Text style={[styles.patternType, { color: theme.colors.text.primary }]}>
+                {type === 'symptom' ? 'Sintomas' :
+                 type === 'period' ? 'Menstruação' :
+                 type === 'mood' ? 'Humor' :
+                 type === 'activity' ? 'Atividade' : 'Notas'}
+              </Text>
+              <Text style={[styles.patternCount, { color: theme.colors.primary }]}>
+                {count}
+              </Text>
+            </View>
+          ))}
+        </View>
+      </View>
+    </AnalyticsCard>
+
+    <AnalyticsCard title="🎯 Correlações Detectadas" animationDelay={200}>
+      <View style={styles.correlationsList}>
+        <View style={styles.correlationItem}>
+          <Text style={styles.correlationIcon}>🔗</Text>
+          <Text style={[styles.correlationText, { color: theme.colors.text.primary }]}>
+            Cólicas são mais frequentes no início do ciclo
+          </Text>
+        </View>
+        <View style={styles.correlationItem}>
+          <Text style={styles.correlationIcon}>🔗</Text>
+          <Text style={[styles.correlationText, { color: theme.colors.text.primary }]}>
+            Humor melhora gradualmente após a menstruação
+          </Text>
+        </View>
+        <View style={styles.correlationItem}>
+          <Text style={styles.correlationIcon}>🔗</Text>
+          <Text style={[styles.correlationText, { color: theme.colors.text.primary }]}>
+            Energia aumenta próximo à ovulação
+          </Text>
+        </View>
+      </View>
+    </AnalyticsCard>
+  </>
+);
+
+const InsightsContent: React.FC<{ analytics: any; onRefresh: () => void; theme: any }> = ({ 
+  analytics, 
+  onRefresh, 
+  theme 
+}) => (
+  <>
+    <InsightCard insights={analytics.insights} onRefresh={onRefresh} />
+    
+    <AnalyticsCard title="🎯 Recomendações Personalizadas" animationDelay={200}>
+      <View style={styles.recommendationsList}>
+        <View style={styles.recommendationItem}>
+          <Text style={styles.recommendationIcon}>💡</Text>
+          <View style={styles.recommendationContent}>
+            <Text style={[styles.recommendationTitle, { color: theme.colors.text.primary }]}>
+              Continue registrando
+            </Text>
+            <Text style={[styles.recommendationText, { color: theme.colors.text.secondary }]}>
+              Seus registros ajudam a gerar insights mais precisos
+            </Text>
+          </View>
+        </View>
+        
+        <View style={styles.recommendationItem}>
+          <Text style={styles.recommendationIcon}>📊</Text>
+          <View style={styles.recommendationContent}>
+            <Text style={[styles.recommendationTitle, { color: theme.colors.text.primary }]}>
+              Monitore sintomas
+            </Text>
+            <Text style={[styles.recommendationText, { color: theme.colors.text.secondary }]}>
+              Observe padrões em seus sintomas mais comuns
+            </Text>
+          </View>
+        </View>
+        
+        <View style={styles.recommendationItem}>
+          <Text style={styles.recommendationIcon}>🌸</Text>
+          <View style={styles.recommendationContent}>
+            <Text style={[styles.recommendationTitle, { color: theme.colors.text.primary }]}>
+              Consulte um médico
+            </Text>
+            <Text style={[styles.recommendationText, { color: theme.colors.text.secondary }]}>
+              Se houver mudanças significativas em seus padrões
+            </Text>
+          </View>
+        </View>
+      </View>
+    </AnalyticsCard>
+  </>
+);
+
+// ==================== COMPONENTE PRINCIPAL ====================
+
+export default function EnhancedAnalyticsScreen() {
+  const { theme } = useAdaptiveTheme();
+  const scrollY = useRef(new Animated.Value(0)).current;
+  
+  // Estados
+  const [selectedTab, setSelectedTab] = useState<SelectedTab>('overview');
+  const [filterPeriod, setFilterPeriod] = useState<FilterPeriod>('all');
+  const [refreshing, setRefreshing] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('cards');
+
+  // Filtros para o hook de dados
+  const filters = useMemo<FilterOptions>(() => ({
+    period: filterPeriod,
+  }), [filterPeriod]);
+
+  // Hooks de dados
+  const { analytics, loading, error, refreshData, hasData } = useAnalyticsData(filters);
+  const { recordsToday, symptomsToday, updateTodayStats } = useRealTimeStats();
+
+  // Funções
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refreshData();
+    await updateTodayStats();
+    setTimeout(() => setRefreshing(false), 1000);
+  }, [refreshData, updateTodayStats]);
+
+  const handleShareAnalytics = useCallback(async () => {
+    if (!analytics) return;
+
+    const report = `
+📊 Meu Relatório EntrePhases
+
+🔢 Estatísticas:
+• ${analytics.totalRecords} registros totais
+• Ciclo médio: ${analytics.averageCycleLength} dias
+• ${analytics.mostCommonSymptoms.length} sintomas únicos
+
+😊 Humor mais comum: ${analytics.moodDistribution[0]?.mood || 'N/A'}
+🔝 Sintoma principal: ${analytics.mostCommonSymptoms[0]?.name || 'N/A'}
+
+🌸 Próxima menstruação: ${analytics.nextPeriodPrediction || 'Calculando...'}
+
+Gerado pelo app EntrePhases
+    `.trim();
+
+    try {
+      await Share.share({
+        message: report,
+        title: 'Meu Relatório EntrePhases',
+      });
+    } catch (error) {
+      console.error('Erro ao compartilhar:', error);
+    }
+  }, [analytics]);
+
+  const renderContent = useCallback(() => {
+    if (!analytics) return null;
+
+    switch (selectedTab) {
+      case 'overview':
+        return <OverviewContent analytics={analytics} theme={theme} />;
+      case 'trends':
+        return <TrendsContent analytics={analytics} theme={theme} />;
+      case 'patterns':
+        return <PatternsContent analytics={analytics} theme={theme} />;
+      case 'insights':
+        return <InsightsContent analytics={analytics} onRefresh={handleRefresh} theme={theme} />;
+      default:
+        return null;
+    }
+  }, [selectedTab, analytics, theme, handleRefresh]);
+
+  // Loading state
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: theme?.colors.background }]}>
+        <View style={styles.loadingContainer}>
+          <Text style={[styles.loadingText, { color: theme?.colors.text.primary }]}>
+            Analisando seus dados...
+          </Text>
+          <View style={styles.loadingSpinner}>
+            <Text style={styles.loadingEmoji}>🔄</Text>
+          </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: theme?.colors.background }]}>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorEmoji}>😔</Text>
+          <Text style={[styles.errorText, { color: theme?.colors.text.primary }]}>
+            {error}
+          </Text>
+          <TouchableOpacity style={[styles.retryButton, { backgroundColor: theme?.colors.primary }]} onPress={handleRefresh}>
+            <Text style={styles.retryButtonText}>Tentar Novamente</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // No data state
+  if (!hasData) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: theme?.colors.background }]}>
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyEmoji}>📊</Text>
+          <Text style={[styles.emptyTitle, { color: theme?.colors.text.primary }]}>
+            Dados Insuficientes
+          </Text>
+          <Text style={[styles.emptyText, { color: theme?.colors.text.secondary }]}>
+            Registre mais sintomas e dados para ver suas análises detalhadas
+          </Text>
+          <TouchableOpacity
+            style={[styles.emptyButton, { backgroundColor: theme?.colors.primary }]}
+            onPress={() => router.push('/records')}
+          >
+            <Text style={styles.emptyButtonText}>Fazer Registros</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!theme) return null;
+
+  return (
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <AnimatedHeader
+        scrollY={scrollY}
+        theme={theme}
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
+      />
+
+      <FilterSection
+        filterPeriod={filterPeriod}
+        onFilterChange={setFilterPeriod}
+        theme={theme}
+      />
+
+      <TabSection
+        selectedTab={selectedTab}
+        onTabChange={setSelectedTab}
+        theme={theme}
+      />
+
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={[theme.colors.primary]}
+            tintColor={theme.colors.primary}
+          />
+        }
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: false }
+        )}
+        scrollEventThrottle={16}
+      >
+        {renderContent()}
+
+        {/* Floating Action Button para compartilhar */}
+        <View style={styles.fabContainer}>
+          <TouchableOpacity
+            style={[styles.fab, { backgroundColor: theme.colors.primary }]}
+            onPress={handleShareAnalytics}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.fabIcon}>📤</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
-// --- FÁBRICA DE ESTILOS ---
+// ==================== ESTILOS ====================
 
-const getStyles = (theme: any) => StyleSheet.create({
+const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
-  } as ViewStyle,
-  loadingContainer: {
+  },
+  
+  // Header animado
+  animatedHeader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1000,
+  },
+  headerGradient: {
     flex: 1,
-    paddingTop: 100,
-    justifyContent: 'flex-start',
-    alignItems: 'center',
-  } as ViewStyle,
-  header: {
+  },
+  headerSafeArea: {
+    flex: 1,
+  },
+  headerContent: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: DESIGN_SYSTEM.spacing.lg,
-    paddingVertical: DESIGN_SYSTEM.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  } as ViewStyle,
+    paddingTop: DESIGN_SYSTEM.spacing.md,
+  },
   backButton: {
     width: 40,
     height: 40,
-    borderRadius: DESIGN_SYSTEM.borderRadius.round,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: theme.colors.surface,
-  } as ViewStyle,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
   backButtonText: {
-    fontSize: DESIGN_SYSTEM.typography.sizes.xl,
-    fontWeight: DESIGN_SYSTEM.typography.weights.bold as 'bold',
-  } as TextStyle,
-  title: {
-    fontSize: DESIGN_SYSTEM.typography.sizes.xl,
-    fontWeight: DESIGN_SYSTEM.typography.weights.bold as 'bold',
-    color: theme.colors.primary,
-  } as TextStyle,
-  headerSpacer: {
-    width: 40,
-  } as ViewStyle,
-  tabContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: DESIGN_SYSTEM.spacing.md,
-    paddingVertical: DESIGN_SYSTEM.spacing.md,
-    justifyContent: 'space-around',
-  } as ViewStyle,
-  tab: {
+    color: 'white',
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  headerTitleContainer: {
     flex: 1,
+    alignItems: 'center',
+  },
+  headerTitle: {
+    color: 'white',
+    fontSize: DESIGN_SYSTEM.typography.sizes.xl,
+    fontWeight: DESIGN_SYSTEM.typography.weights.bold as any,
+    textAlign: 'center',
+  },
+  headerSubtitle: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: DESIGN_SYSTEM.typography.sizes.sm,
+    textAlign: 'center',
+    marginTop: 2,
+  },
+  shareButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  shareIcon: {
+    fontSize: 20,
+  },
+
+  // Filtros
+  filterSection: {
+    marginTop: 120,
+    paddingVertical: DESIGN_SYSTEM.spacing.md,
+  },
+  filterScrollContent: {
+    paddingHorizontal: DESIGN_SYSTEM.spacing.lg,
+  },
+  filterButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    paddingHorizontal: DESIGN_SYSTEM.spacing.md,
     paddingVertical: DESIGN_SYSTEM.spacing.sm,
     borderRadius: DESIGN_SYSTEM.borderRadius.xl,
-    marginHorizontal: DESIGN_SYSTEM.spacing.xs,
+    marginRight: DESIGN_SYSTEM.spacing.sm,
+    borderWidth: 1,
     ...DESIGN_SYSTEM.shadows.sm,
-  } as ViewStyle,
-  tabEmoji: {
-    fontSize: DESIGN_SYSTEM.typography.sizes.md,
+  },
+  filterIcon: {
+    fontSize: 16,
     marginRight: DESIGN_SYSTEM.spacing.xs,
-  } as TextStyle,
+  },
+  filterText: {
+    fontSize: DESIGN_SYSTEM.typography.sizes.sm,
+    fontWeight: DESIGN_SYSTEM.typography.weights.semibold as any,
+  },
+
+  // Tabs
+  tabSection: {
+    paddingVertical: DESIGN_SYSTEM.spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  tabScrollContent: {
+    paddingHorizontal: DESIGN_SYSTEM.spacing.lg,
+  },
+  tab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: DESIGN_SYSTEM.spacing.md,
+    paddingVertical: DESIGN_SYSTEM.spacing.sm,
+    marginRight: DESIGN_SYSTEM.spacing.md,
+    borderRadius: DESIGN_SYSTEM.borderRadius.md,
+    borderBottomWidth: 2,
+  },
+  tabIcon: {
+    fontSize: 16,
+    marginRight: DESIGN_SYSTEM.spacing.xs,
+  },
   tabText: {
     fontSize: DESIGN_SYSTEM.typography.sizes.sm,
-    fontWeight: DESIGN_SYSTEM.typography.weights.semibold as '600',
-  } as TextStyle,
-  filterContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: DESIGN_SYSTEM.spacing.md,
-    paddingHorizontal: DESIGN_SYSTEM.spacing.md,
-  } as ViewStyle,
-  filterButton: {
+  },
+
+  // Scroll
+  scrollView: {
     flex: 1,
-    marginHorizontal: DESIGN_SYSTEM.spacing.xs,
-  } as ViewStyle,
-  content: {
+  },
+  scrollContent: {
     paddingHorizontal: DESIGN_SYSTEM.spacing.lg,
-    paddingBottom: DESIGN_SYSTEM.spacing.xxl,
-  } as ViewStyle,
-  statsCards: {
+    paddingBottom: 100,
+    paddingTop: DESIGN_SYSTEM.spacing.md,
+  },
+
+  // Grid layouts
+  twoColumnGrid: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: DESIGN_SYSTEM.spacing.lg,
-  } as ViewStyle,
-  statsCard: {
-    flex: 1,
-    marginHorizontal: DESIGN_SYSTEM.spacing.xs,
-    padding: DESIGN_SYSTEM.spacing.md,
-    borderRadius: DESIGN_SYSTEM.borderRadius.lg,
-    alignItems: 'center',
-    ...DESIGN_SYSTEM.shadows.md,
-  } as ViewStyle,
-  statsCardEmoji: {
-    fontSize: DESIGN_SYSTEM.typography.sizes.xxl,
-    marginBottom: DESIGN_SYSTEM.spacing.xs,
-  } as TextStyle,
-  statsCardValue: {
-    fontSize: DESIGN_SYSTEM.typography.sizes.xl,
-    fontWeight: DESIGN_SYSTEM.typography.weights.bold as 'bold',
-    marginBottom: DESIGN_SYSTEM.spacing.xs,
-  } as TextStyle,
-  statsCardLabel: {
-    fontSize: DESIGN_SYSTEM.typography.sizes.xs,
-    textAlign: 'center',
-    lineHeight: DESIGN_SYSTEM.typography.lineHeights.normal,
-  } as TextStyle,
-  section: {
-    borderRadius: DESIGN_SYSTEM.borderRadius.lg,
-    padding: DESIGN_SYSTEM.spacing.lg,
-    marginBottom: DESIGN_SYSTEM.spacing.lg,
-    ...DESIGN_SYSTEM.shadows.md,
-  } as ViewStyle,
-  sectionTitle: {
-    fontSize: DESIGN_SYSTEM.typography.sizes.lg,
-    fontWeight: DESIGN_SYSTEM.typography.weights.bold as 'bold',
-    marginBottom: DESIGN_SYSTEM.spacing.md,
-  } as TextStyle,
-  moodItem: {
-    marginBottom: DESIGN_SYSTEM.spacing.md,
-  } as ViewStyle,
-  moodLabel: {
-    fontSize: DESIGN_SYSTEM.typography.sizes.base,
-    fontWeight: DESIGN_SYSTEM.typography.weights.semibold as '600',
-    marginBottom: DESIGN_SYSTEM.spacing.xs,
-  } as TextStyle,
-  progressBarContainer: {
+  },
+  halfCard: {
+    width: '48%',
+  },
+
+  // Overview content
+  symptomRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-  } as ViewStyle,
-  progressText: {
-    fontSize: DESIGN_SYSTEM.typography.sizes.sm,
-    fontWeight: DESIGN_SYSTEM.typography.weights.semibold as '600',
-    minWidth: 40,
-    textAlign: 'right',
-  } as TextStyle,
-  symptomItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: DESIGN_SYSTEM.spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  } as ViewStyle,
-  symptomInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  } as ViewStyle,
+    borderBottomColor: 'rgba(0, 0, 0, 0.05)',
+  },
   symptomEmoji: {
-    fontSize: DESIGN_SYSTEM.typography.sizes.xl,
+    fontSize: 20,
     marginRight: DESIGN_SYSTEM.spacing.sm,
-  } as TextStyle,
+  },
+  symptomInfo: {
+    flex: 1,
+  },
   symptomName: {
     fontSize: DESIGN_SYSTEM.typography.sizes.md,
-    fontWeight: DESIGN_SYSTEM.typography.weights.semibold as '600',
-  } as TextStyle,
-  symptomStats: {
+    fontWeight: DESIGN_SYSTEM.typography.weights.semibold as any,
+  },
+  symptomCount: {
+    fontSize: DESIGN_SYSTEM.typography.sizes.sm,
+    marginTop: 2,
+  },
+  symptomTrend: {
+    fontSize: DESIGN_SYSTEM.typography.sizes.sm,
+    fontWeight: DESIGN_SYSTEM.typography.weights.bold as any,
+  },
+
+  predictionContainer: {
+    gap: DESIGN_SYSTEM.spacing.md,
+  },
+  predictionItem: {
     flexDirection: 'row',
     alignItems: 'center',
-  } as ViewStyle,
-  symptomCount: {
-    fontSize: DESIGN_SYSTEM.typography.sizes.base,
+  },
+  predictionIcon: {
+    fontSize: 24,
+    marginRight: DESIGN_SYSTEM.spacing.md,
+  },
+  predictionLabel: {
+    fontSize: DESIGN_SYSTEM.typography.sizes.sm,
+    marginBottom: 2,
+  },
+  predictionValue: {
+    fontSize: DESIGN_SYSTEM.typography.sizes.md,
+    fontWeight: DESIGN_SYSTEM.typography.weights.bold as any,
+  },
+
+  // Patterns content
+  patternsGrid: {
+    gap: DESIGN_SYSTEM.spacing.md,
+  },
+  patternCard: {
+    padding: DESIGN_SYSTEM.spacing.md,
+    borderRadius: DESIGN_SYSTEM.borderRadius.md,
+    backgroundColor: 'rgba(0, 0, 0, 0.02)',
+  },
+  patternIcon: {
+    fontSize: 24,
+    marginBottom: DESIGN_SYSTEM.spacing.sm,
+    textAlign: 'center',
+  },
+  patternLabel: {
+    fontSize: DESIGN_SYSTEM.typography.sizes.md,
+    fontWeight: DESIGN_SYSTEM.typography.weights.semibold as any,
+    textAlign: 'center',
+    marginBottom: DESIGN_SYSTEM.spacing.sm,
+  },
+  patternRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: DESIGN_SYSTEM.spacing.xs,
+  },
+  patternType: {
+    fontSize: DESIGN_SYSTEM.typography.sizes.sm,
+  },
+  patternCount: {
+    fontSize: DESIGN_SYSTEM.typography.sizes.sm,
+    fontWeight: DESIGN_SYSTEM.typography.weights.bold as any,
+  },
+
+  correlationsList: {
+    gap: DESIGN_SYSTEM.spacing.md,
+  },
+  correlationItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  correlationIcon: {
+    fontSize: 16,
     marginRight: DESIGN_SYSTEM.spacing.sm,
-  } as TextStyle,
-  symptomRank: {
-    width: 24,
-    height: 24,
-    borderRadius: DESIGN_SYSTEM.borderRadius.round,
+    marginTop: 2,
+  },
+  correlationText: {
+    flex: 1,
+    fontSize: DESIGN_SYSTEM.typography.sizes.md,
+    lineHeight: 20,
+  },
+
+  // Insights content
+  recommendationsList: {
+    gap: DESIGN_SYSTEM.spacing.md,
+  },
+  recommendationItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  recommendationIcon: {
+    fontSize: 20,
+    marginRight: DESIGN_SYSTEM.spacing.md,
+    marginTop: 2,
+  },
+  recommendationContent: {
+    flex: 1,
+  },
+  recommendationTitle: {
+    fontSize: DESIGN_SYSTEM.typography.sizes.md,
+    fontWeight: DESIGN_SYSTEM.typography.weights.semibold as any,
+    marginBottom: 4,
+  },
+  recommendationText: {
+    fontSize: DESIGN_SYSTEM.typography.sizes.sm,
+    lineHeight: 18,
+  },
+
+  // States
+  loadingContainer: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-  } as ViewStyle,
-  symptomRankText: {
+    paddingHorizontal: DESIGN_SYSTEM.spacing.xl,
+  },
+  loadingText: {
+    fontSize: DESIGN_SYSTEM.typography.sizes.lg,
+    fontWeight: DESIGN_SYSTEM.typography.weights.semibold as any,
+    marginBottom: DESIGN_SYSTEM.spacing.lg,
+    textAlign: 'center',
+  },
+  loadingSpinner: {
+    padding: DESIGN_SYSTEM.spacing.lg,
+  },
+  loadingEmoji: {
+    fontSize: 32,
+    textAlign: 'center',
+  },
+
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: DESIGN_SYSTEM.spacing.xl,
+  },
+  errorEmoji: {
+    fontSize: 48,
+    marginBottom: DESIGN_SYSTEM.spacing.lg,
+  },
+  errorText: {
+    fontSize: DESIGN_SYSTEM.typography.sizes.lg,
+    textAlign: 'center',
+    marginBottom: DESIGN_SYSTEM.spacing.xl,
+  },
+  retryButton: {
+    paddingHorizontal: DESIGN_SYSTEM.spacing.xl,
+    paddingVertical: DESIGN_SYSTEM.spacing.md,
+    borderRadius: DESIGN_SYSTEM.borderRadius.md,
+  },
+  retryButtonText: {
     color: 'white',
-    fontSize: DESIGN_SYSTEM.typography.sizes.xs,
-    fontWeight: DESIGN_SYSTEM.typography.weights.bold as 'bold',
-  } as TextStyle,
+    fontSize: DESIGN_SYSTEM.typography.sizes.md,
+    fontWeight: DESIGN_SYSTEM.typography.weights.semibold as any,
+  },
+
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: DESIGN_SYSTEM.spacing.xl,
+  },
+  emptyEmoji: {
+    fontSize: 64,
+    marginBottom: DESIGN_SYSTEM.spacing.lg,
+  },
+  emptyTitle: {
+    fontSize: DESIGN_SYSTEM.typography.sizes.xl,
+    fontWeight: DESIGN_SYSTEM.typography.weights.bold as any,
+    textAlign: 'center',
+    marginBottom: DESIGN_SYSTEM.spacing.md,
+  },
   emptyText: {
     fontSize: DESIGN_SYSTEM.typography.sizes.md,
     textAlign: 'center',
-    fontStyle: 'italic',
+    lineHeight: 22,
+    marginBottom: DESIGN_SYSTEM.spacing.xl,
+  },
+  emptyButton: {
+    paddingHorizontal: DESIGN_SYSTEM.spacing.xl,
     paddingVertical: DESIGN_SYSTEM.spacing.md,
-  } as TextStyle,
-  cycleItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: DESIGN_SYSTEM.spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  } as ViewStyle,
-  cycleDate: {
+    borderRadius: DESIGN_SYSTEM.borderRadius.md,
+  },
+  emptyButtonText: {
+    color: 'white',
     fontSize: DESIGN_SYSTEM.typography.sizes.md,
-    fontWeight: DESIGN_SYSTEM.typography.weights.semibold as '600',
-    width: 60,
-  } as TextStyle,
-  cycleLengthContainer: {
-    flex: 1,
-    marginLeft: DESIGN_SYSTEM.spacing.md,
-  } as ViewStyle,
-  cycleLength: {
-    fontSize: DESIGN_SYSTEM.typography.sizes.base,
-    marginBottom: DESIGN_SYSTEM.spacing.xs,
-  } as TextStyle,
-  cycleInfo: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingVertical: DESIGN_SYSTEM.spacing.sm,
-  } as ViewStyle,
-  cycleInfoItem: {
+    fontWeight: DESIGN_SYSTEM.typography.weights.semibold as any,
+  },
+
+  // FAB
+  fabContainer: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+  },
+  fab: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
     alignItems: 'center',
-    flex: 1,
-  } as ViewStyle,
-  cycleInfoLabel: {
-    fontSize: DESIGN_SYSTEM.typography.sizes.sm,
-    color: theme.colors.secondary,
-    marginBottom: DESIGN_SYSTEM.spacing.xs,
-  } as TextStyle,
-  cycleInfoValue: {
-    fontSize: DESIGN_SYSTEM.typography.sizes.lg,
-    fontWeight: DESIGN_SYSTEM.typography.weights.bold as 'bold',
-  } as TextStyle,
+    ...DESIGN_SYSTEM.shadows.lg,
+  },
+  fabIcon: {
+    fontSize: 24,
+  },
 });
