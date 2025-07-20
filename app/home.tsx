@@ -1,4 +1,4 @@
-// app/home.tsx - VERSÃO COMPLETA REDESENHADA
+// app/home.tsx - VERSÃO CORRIGIDA
 import { useState, useEffect, useRef } from 'react';
 import {
   View,
@@ -6,16 +6,15 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Image,
   Dimensions,
   Animated,
   StatusBar,
+  SafeAreaView,
 } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAdaptiveTheme } from '../hooks/useAdaptiveTheme';
 import { ParticleSystem } from '../components/ParticleSystem';
-import { Card, Button, ProgressBar } from '../components/ui/index';
 import { calculateCycleInfo } from '../hooks/cycleCalculations';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import moment from 'moment';
@@ -48,87 +47,66 @@ export default function HomeScreen() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [cycleData, setCycleData] = useState<CycleData | null>(null);
   const [cycleInfo, setCycleInfo] = useState<CycleInfo | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Animações
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-  const cardsOpacity = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(0.8)).current;
+  const cardsAnim = useRef(new Animated.Value(0)).current;
+  const buttonsAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     loadUserData();
   }, []);
 
   useEffect(() => {
-    if (theme && userProfile) {
+    if (theme && !isLoading) {
       startAnimations();
     }
-  }, [theme, userProfile]);
+  }, [theme, isLoading]);
 
   useEffect(() => {
     if (cycleData) {
-      const info = calculateCycleInfo(cycleData);
-      setCycleInfo(info);
+      try {
+        const info = calculateCycleInfo(cycleData);
+        setCycleInfo(info);
+      } catch (error) {
+        console.error('Erro ao calcular informações do ciclo:', error);
+      }
     }
   }, [cycleData]);
 
   const startAnimations = () => {
-    // Animação de entrada principal
-    Animated.parallel([
+    Animated.stagger(200, [
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 800,
+        duration: 600,
         useNativeDriver: true,
       }),
       Animated.timing(slideAnim, {
         toValue: 0,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+      Animated.timing(cardsAnim, {
+        toValue: 1,
         duration: 600,
         useNativeDriver: true,
       }),
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        tension: 100,
-        friction: 8,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
-    // Animação dos cards com stagger
-    Animated.stagger(150, [
-      Animated.timing(cardsOpacity, {
+      Animated.timing(buttonsAnim, {
         toValue: 1,
         duration: 600,
         useNativeDriver: true,
       }),
     ]).start();
-
-    // Animação de pulso contínua
-    const pulseAnimation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.02,
-          duration: 2000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 2000,
-          useNativeDriver: true,
-        }),
-      ])
-    );
-    pulseAnimation.start();
-
-    return () => {
-      pulseAnimation.stop();
-    };
   };
 
   const loadUserData = async () => {
     try {
-      const profileData = await AsyncStorage.getItem('userProfile');
-      const cycleInfo = await AsyncStorage.getItem('cycleData');
+      const [profileData, cycleInfo] = await Promise.all([
+        AsyncStorage.getItem('userProfile'),
+        AsyncStorage.getItem('cycleData')
+      ]);
       
       if (profileData) {
         setUserProfile(JSON.parse(profileData));
@@ -139,6 +117,8 @@ export default function HomeScreen() {
       }
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -196,57 +176,70 @@ export default function HomeScreen() {
       ovulation: 'Você é pura energia e vitalidade! ⭐',
       preMenstrual: 'Sua sensibilidade é um superpoder 💜',
     };
-    return messages[(theme?.phase as keyof typeof messages) ?? 'menstrual'] || messages.menstrual;
+    return messages[(theme?.phase as keyof typeof messages) || 'menstrual'];
   };
 
+  // CORRIGINDO OS BOTÕES DE AÇÃO RÁPIDA
   const quickActions = [
     { 
       key: 'calendar', 
       icon: '📅', 
       label: 'Calendário', 
-      description: 'Ciclo',
-      route: '/calendar',
-      gradient: ['#58D68D', '#27AE60'] as const
+      description: 'Ver ciclo',
+      route: 'calendar',
+      colors: ['#58D68D', '#27AE60']
+    },
+    { 
+      key: 'records', 
+      icon: '📝', 
+      label: 'Registros', 
+      description: 'Anotar',
+      route: 'records',
+      colors: ['#FFB74D', '#FF9800']
     },
     { 
       key: 'analytics', 
       icon: '📊', 
       label: 'Estatísticas', 
       description: 'Insights',
-      route: '/analytics',
-      gradient: ['#BB86FC', '#8E44AD'] as const
+      route: 'analytics',
+      colors: ['#BB86FC', '#8E44AD']
     },
   ];
 
+  const handleQuickAction = (route: string) => {
+    try {
+      console.log('Navegando para:', route);
+      router.push(`/${route}` as any);
+    } catch (error) {
+      console.error('Erro na navegação:', error);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: '#0A0A0F' }]}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>✨ Carregando...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   if (!theme) {
     return (
-      <View style={[styles.loadingContainer, { backgroundColor: '#FEFEFE' }]}>
-        <LinearGradient
-          colors={['#FF6B9D', '#FFB4D6']}
-          style={styles.loadingGradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <Animated.Text 
-            style={[
-              styles.loadingText,
-              {
-                opacity: fadeAnim,
-                transform: [{ scale: pulseAnim }],
-              }
-            ]}
-          >
-            ✨ Carregando sua jornada...
-          </Animated.Text>
-        </LinearGradient>
-      </View>
+      <SafeAreaView style={[styles.container, { backgroundColor: '#0A0A0F' }]}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Preparando tema...</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   const phaseInfo = getPhaseInfo();
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <StatusBar barStyle={isLightMode ? 'dark-content' : 'light-content'} />
       
       {/* Sistema de partículas */}
@@ -274,15 +267,15 @@ export default function HomeScreen() {
           ]}
         >
           <View style={styles.greetingContainer}>
-            <Text style={[styles.greeting, { color: theme.colors.text.secondary }]}>
+            <Text style={[styles.greeting, { color: theme.colors.text?.secondary || theme.colors.secondary }]}>
               {getGreeting()},
             </Text>
-            <Text style={[styles.userName, { color: theme.colors.text.primary }]}>
+            <Text style={[styles.userName, { color: theme.colors.text?.primary || theme.colors.primary }]}>
               {userProfile?.name || 'Usuária'}! 👋
             </Text>
           </View>
           
-          <Text style={[styles.motivationalMessage, { color: theme.colors.text.tertiary }]}>
+          <Text style={[styles.motivationalMessage, { color: theme.colors.text?.tertiary || theme.colors.secondary }]}>
             {getMotivationalMessage()}
           </Text>
         </Animated.View>
@@ -290,18 +283,32 @@ export default function HomeScreen() {
         {/* Card Principal do Ciclo */}
         <Animated.View
           style={[
+            styles.cycleCardContainer,
             {
-              opacity: fadeAnim,
+              opacity: cardsAnim,
               transform: [
-                { translateY: slideAnim },
-                { scale: pulseAnim },
+                { 
+                  translateY: cardsAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [30, 0],
+                  }),
+                },
               ],
             },
           ]}
         >
-          <Card variant="glass" style={styles.mainCycleCard}>
+          <View style={[styles.cycleCard, { backgroundColor: theme.colors.surface }]}>
             <LinearGradient
-              colors={theme.colors.gradients.primary as [import('react-native').ColorValue, import('react-native').ColorValue]}
+              colors={
+                Array.isArray(theme.colors.gradients?.primary) &&
+                theme.colors.gradients.primary.length >= 2
+                  ? [
+                      theme.colors.gradients.primary[0],
+                      theme.colors.gradients.primary[1],
+                      ...theme.colors.gradients.primary.slice(2)
+                    ] as [import('react-native').ColorValue, import('react-native').ColorValue, ...import('react-native').ColorValue[]]
+                  : [theme.colors.primary, theme.colors.secondary]
+              }
               style={styles.cycleCardGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
@@ -309,14 +316,9 @@ export default function HomeScreen() {
               <View style={styles.cycleCardContent}>
                 {/* Header da Fase */}
                 <View style={styles.phaseHeader}>
-                  <Animated.Text 
-                    style={[
-                      styles.phaseEmoji,
-                      { transform: [{ scale: pulseAnim }] }
-                    ]}
-                  >
+                  <Text style={styles.phaseEmoji}>
                     {phaseInfo.emoji}
-                  </Animated.Text>
+                  </Text>
                   <View style={styles.phaseTextContainer}>
                     <Text style={styles.phaseName}>{phaseInfo.name}</Text>
                     <Text style={styles.phaseDescription}>{phaseInfo.description}</Text>
@@ -335,49 +337,29 @@ export default function HomeScreen() {
                     <Text style={styles.cycleStatValue}>{Math.round((phaseProgress || 0.7) * 100)}%</Text>
                   </View>
                 </View>
-
-                {/* Progresso da Fase */}
-                <View style={styles.progressSection}>
-                  <Text style={styles.progressLabel}>Progresso da Fase</Text>
-                  <ProgressBar
-                    progress={phaseProgress || 0.7}
-                    height={10}
-                    animated={true}
-                    gradient={false}
-                    style={styles.progressBar}
-                  />
-                </View>
               </View>
             </LinearGradient>
-          </Card>
+          </View>
         </Animated.View>
 
-        {/* Cards de Informações Rápidas */}
+        {/* Cards de Informações Rápidas - CORRIGIDO */}
         <Animated.View 
           style={[
             styles.infoCardsSection,
-            { 
-              opacity: cardsOpacity,
-              transform: [{ scale: scaleAnim }],
-            }
+            { opacity: cardsAnim }
           ]}
         >
-          <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.text?.primary || theme.colors.primary }]}>
             📊 Resumo do Ciclo
           </Text>
           
           <View style={styles.infoCardsGrid}>
-            <Card variant="elevated" style={styles.infoCard}>
+            <View style={[styles.infoCard, { backgroundColor: theme.colors.surface }]}>
               <View style={styles.infoCardContent}>
-                <LinearGradient
-                  colors={['#FFE5F0', '#F8BBD9']}
-                  style={styles.infoCardIcon}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                >
+                <View style={[styles.infoCardIcon, { backgroundColor: '#FFE5F0' }]}>
                   <Text style={styles.infoCardEmoji}>📅</Text>
-                </LinearGradient>
-                <Text style={[styles.infoCardTitle, { color: theme.colors.text.primary }]}>
+                </View>
+                <Text style={[styles.infoCardTitle, { color: theme.colors.text?.primary || theme.colors.primary }]}>
                   Próxima Menstruação
                 </Text>
                 <Text style={[styles.infoCardValue, { color: theme.colors.primary }]}>
@@ -386,37 +368,32 @@ export default function HomeScreen() {
                    `${cycleInfo?.daysUntilNextPeriod || 0} dias`}
                 </Text>
               </View>
-            </Card>
+            </View>
 
-            <Card variant="elevated" style={styles.infoCard}>
+            <View style={[styles.infoCard, { backgroundColor: theme.colors.surface }]}>
               <View style={styles.infoCardContent}>
-                <LinearGradient
-                  colors={['#FEF2F2', '#FCA5A5']}
-                  style={styles.infoCardIcon}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                >
+                <View style={[styles.infoCardIcon, { backgroundColor: '#FEF2F2' }]}>
                   <Text style={styles.infoCardEmoji}>🎯</Text>
-                </LinearGradient>
-                <Text style={[styles.infoCardTitle, { color: theme.colors.text.primary }]}>
+                </View>
+                <Text style={[styles.infoCardTitle, { color: theme.colors.text?.primary || theme.colors.primary }]}>
                   Chance de Gravidez
                 </Text>
                 <Text style={[styles.infoCardValue, { color: theme.colors.primary }]}>
                   {cycleInfo?.pregnancyChance || 0}%
                 </Text>
               </View>
-            </Card>
+            </View>
           </View>
         </Animated.View>
 
-        {/* Ações Rápidas */}
+        {/* Ações Rápidas - CORRIGIDAS */}
         <Animated.View 
           style={[
             styles.quickActionsSection,
-            { opacity: cardsOpacity }
+            { opacity: buttonsAnim }
           ]}
         >
-          <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.text?.primary || theme.colors.primary }]}>
             ⚡ Ações Rápidas
           </Text>
           
@@ -425,10 +402,10 @@ export default function HomeScreen() {
               <Animated.View
                 key={action.key}
                 style={{
-                  opacity: cardsOpacity,
+                  opacity: buttonsAnim,
                   transform: [
                     {
-                      translateY: cardsOpacity.interpolate({
+                      translateY: buttonsAnim.interpolate({
                         inputRange: [0, 1],
                         outputRange: [30, 0],
                       }),
@@ -438,12 +415,12 @@ export default function HomeScreen() {
               >
                 <TouchableOpacity
                   style={styles.quickActionButton}
-                  onPress={() => router.push(action.route as any)}
+                  onPress={() => handleQuickAction(action.route)}
                   activeOpacity={0.8}
                 >
-                  <Card variant="glass" style={styles.quickActionCard}>
+                  <View style={[styles.quickActionCard, { backgroundColor: theme.colors.surface }]}>
                     <LinearGradient
-                      colors={action.gradient}
+                      colors={action.colors as [import('react-native').ColorValue, import('react-native').ColorValue, ...import('react-native').ColorValue[]]}
                       style={styles.quickActionGradient}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
@@ -458,7 +435,7 @@ export default function HomeScreen() {
                         </Text>
                       </View>
                     </LinearGradient>
-                  </Card>
+                  </View>
                 </TouchableOpacity>
               </Animated.View>
             ))}
@@ -469,68 +446,55 @@ export default function HomeScreen() {
         <Animated.View 
           style={[
             styles.tipsSection,
-            { opacity: cardsOpacity }
+            { opacity: cardsAnim }
           ]}
         >
-          <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.text?.primary || theme.colors.primary }]}>
             💡 Dicas para {phaseInfo.name}
           </Text>
           
-          <Card variant="minimal" gradient style={styles.tipsCard}>
+          <View style={[styles.tipsCard, { backgroundColor: theme.colors.surface }]}>
             <View style={styles.tipsContent}>
-              {phaseInfo.tips.map((tip, index) => (
-                <Animated.View 
-                  key={index} 
-                  style={[
-                    styles.tipItem,
-                    {
-                      opacity: cardsOpacity,
-                      transform: [
-                        {
-                          translateX: cardsOpacity.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [-20, 0],
-                          }),
-                        },
-                      ],
-                    },
-                  ]}
-                >
+              {phaseInfo.tips.slice(0, 3).map((tip, index) => (
+                <View key={index} style={styles.tipItem}>
                   <LinearGradient
                     colors={[theme.colors.primary, theme.colors.secondary]}
                     style={styles.tipDot}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                   />
-                  <Text style={[styles.tipText, { color: theme.colors.text.primary }]}>
+                  <Text style={[styles.tipText, { color: theme.colors.text?.primary || theme.colors.primary }]}>
                     {tip}
                   </Text>
-                </Animated.View>
+                </View>
               ))}
             </View>
-          </Card>
+          </View>
         </Animated.View>
 
         {/* Botão de Configurações */}
         <Animated.View 
           style={[
             styles.settingsSection,
-            { opacity: cardsOpacity }
+            { opacity: buttonsAnim }
           ]}
         >
-          <Button
-            title="Configurações Avançadas"
-            onPress={() => router.push('/settings')}
-            variant="secondary"
-            icon="⚙️"
-            style={styles.settingsButton}
-          />
+          <TouchableOpacity
+            style={[styles.settingsButton, { backgroundColor: theme.colors.surface }]}
+            onPress={() => handleQuickAction('settings')}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.settingsIcon}>⚙️</Text>
+            <Text style={[styles.settingsText, { color: theme.colors.text?.secondary || theme.colors.secondary }]}>
+              Configurações Avançadas
+            </Text>
+          </TouchableOpacity>
         </Animated.View>
 
         {/* Espaçamento inferior */}
         <View style={styles.bottomSpacer} />
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -540,14 +504,11 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-  },
-  loadingGradient: {
-    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
   loadingText: {
-    color: 'white',
+    color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '600',
     textAlign: 'center',
@@ -584,9 +545,17 @@ const styles = StyleSheet.create({
     opacity: 0.9,
     fontStyle: 'italic',
   },
-  mainCycleCard: {
+  cycleCardContainer: {
     marginBottom: 30,
+  },
+  cycleCard: {
+    borderRadius: 20,
     overflow: 'hidden',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
   },
   cycleCardGradient: {
     borderRadius: 20,
@@ -629,7 +598,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     width: '100%',
-    marginBottom: 25,
   },
   cycleStat: {
     alignItems: 'center',
@@ -650,21 +618,6 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
   },
-  progressSection: {
-    width: '100%',
-    alignItems: 'center',
-  },
-  progressLabel: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginBottom: 12,
-    textShadowColor: 'rgba(0,0,0,0.2)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 1,
-  },
-  progressBar: {
-    width: '85%',
-  },
   infoCardsSection: {
     marginBottom: 30,
   },
@@ -681,6 +634,12 @@ const styles = StyleSheet.create({
   infoCard: {
     width: (width - 60) / 2,
     padding: 18,
+    borderRadius: 16,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   infoCardContent: {
     alignItems: 'center',
@@ -720,7 +679,13 @@ const styles = StyleSheet.create({
   },
   quickActionCard: {
     aspectRatio: 0.85,
+    borderRadius: 15,
     overflow: 'hidden',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   quickActionGradient: {
     flex: 1,
@@ -761,6 +726,12 @@ const styles = StyleSheet.create({
   },
   tipsCard: {
     padding: 22,
+    borderRadius: 16,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   tipsContent: {
     gap: 16,
@@ -787,10 +758,26 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   settingsButton: {
-    paddingHorizontal: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 24,
     paddingVertical: 16,
+    borderRadius: 12,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  settingsIcon: {
+    fontSize: 20,
+    marginRight: 12,
+  },
+  settingsText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
   bottomSpacer: {
     height: 40,
   },
-}); 
+});
