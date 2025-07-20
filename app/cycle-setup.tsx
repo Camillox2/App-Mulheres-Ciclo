@@ -8,6 +8,7 @@ import {
   Alert,
   SafeAreaView,
   ScrollView,
+  ActivityIndicator, // Adicionado ActivityIndicator
 } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -204,9 +205,13 @@ export default function CycleSetupScreen() {
               onPress={handleFinishSetup}
               disabled={isLoading}
             >
-              <Text style={styles.finishButtonText}>
-                {isLoading ? 'Finalizando...' : 'Finalizar Configuração'}
-              </Text>
+              {isLoading ? (
+                <ActivityIndicator size="small" color="#FF6B9D" />
+              ) : (
+                <Text style={styles.finishButtonText}>
+                  Finalizar Configuração
+                </Text>
+              )}
             </TouchableOpacity>
 
             <Text style={styles.progressText}>2 de 2 - Ciclo</Text>

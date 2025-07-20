@@ -10,6 +10,7 @@ import {
   Animated,
   StatusBar,
   SafeAreaView,
+  ActivityIndicator, // Adicionado ActivityIndicator
 } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -220,7 +221,7 @@ export default function HomeScreen() {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: '#0A0A0F' }]}>
         <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>✨ Carregando...</Text>
+          <ActivityIndicator size="large" color="#FF6B9D" />
         </View>
       </SafeAreaView>
     );
