@@ -1,20 +1,41 @@
-import { useEffect } from 'react';
+// app/_layout.tsx - VERSÃO ATUALIZADA
+import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { Stack } from 'expo-router';
+import { Stack, useSegments } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { View, StyleSheet } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Font from 'expo-font';
 import { setupNotificationListeners, requestNotificationPermissions } from '../hooks/notifications';
+import { GlobalHeader } from '../components/GlobalHeader';
+import { SidebarDrawer } from '../components/Sidebar';
+import { useAdaptiveTheme } from '../hooks/useAdaptiveTheme';
 import React from 'react';
 
 // Previne a tela de splash de esconder automaticamente
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [appReady, setAppReady] = useState(false);
+  const segments = useSegments();
+  const { theme } = useAdaptiveTheme();
+
+  // Determina a tela atual baseada nos segments
+  const getCurrentScreen = () => {
+    const screen = segments[segments.length - 1] || 'index';
+    return screen;
+  };
+
+  // Telas que não devem mostrar o header/drawer
+  const screensWithoutHeader = ['index', 'welcome', 'profile-setup', 'cycle-setup'];
+  const currentScreen = getCurrentScreen();
+  const shouldShowHeader = !screensWithoutHeader.includes(currentScreen);
+
   useEffect(() => {
     const loadResources = async () => {
       try {
-        // Carrega fontes personalizadas (opcionais - pode usar fontes do sistema)
+        // Carrega fontes personalizadas (opcional)
         // await Font.loadAsync({
         //   'Poppins-Regular': require('../assets/fonts/Poppins-Regular.ttf'),
         // });
@@ -30,8 +51,10 @@ export default function RootLayout() {
         // Configura listeners de notificação
         const notificationListeners = setupNotificationListeners();
 
-        // Pequeno delay para mostrar a splash screen
+        // Aguarda um pouco para garantir que tudo carregou
         await new Promise(resolve => setTimeout(resolve, 1500));
+        
+        setAppReady(true);
         
         // Cleanup function retornada pelo useEffect
         return () => {
@@ -40,6 +63,7 @@ export default function RootLayout() {
         
       } catch (error) {
         console.warn('Erro ao carregar recursos:', error);
+        setAppReady(true); // Continua mesmo com erro
       } finally {
         await SplashScreen.hideAsync();
       }
@@ -48,26 +72,133 @@ export default function RootLayout() {
     loadResources();
   }, []);
 
+  // Fecha o drawer quando muda de tela
+  useEffect(() => {
+    setIsDrawerOpen(false);
+  }, [currentScreen]);
+
+  const handleMenuPress = () => {
+    setIsDrawerOpen(!isDrawerOpen);
+  };
+
+  const handleDrawerClose = () => {
+    setIsDrawerOpen(false);
+  };
+
+  if (!appReady) {
+    return null; // Ou um loading screen customizado
+  }
+
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <StatusBar style="auto" />
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          animation: 'slide_from_right',
-          gestureEnabled: true,
-        }}
-      >
-        <Stack.Screen name="index" />
-        <Stack.Screen name="welcome" />
-        <Stack.Screen name="profile-setup" />
-        <Stack.Screen name="cycle-setup" />
-        <Stack.Screen name="home" />
-        <Stack.Screen name="calendar" />
-        <Stack.Screen name="records" />
-        <Stack.Screen name="analytics" />
-        <Stack.Screen name="settings" />
-      </Stack>
+    <GestureHandlerRootView style={styles.container}>
+      <View style={[
+        styles.appContainer, 
+        { backgroundColor: theme?.colors.background || '#FFFFFF' }
+      ]}>
+        
+        {/* Header Global (apenas em telas específicas) */}
+        {shouldShowHeader && (
+          <GlobalHeader
+            onMenuPress={handleMenuPress}
+            isMenuOpen={isDrawerOpen}
+            currentScreen={currentScreen}
+          />
+        )}
+
+        {/* Stack Navigator */}
+        <View style={styles.stackContainer}>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              animation: 'slide_from_right',
+              gestureEnabled: true,
+              animationDuration: 300,
+            }}
+          >
+            <Stack.Screen 
+              name="index" 
+              options={{
+                animation: 'fade',
+              }}
+            />
+            <Stack.Screen 
+              name="welcome" 
+              options={{
+                animation: 'slide_from_bottom',
+              }}
+            />
+            <Stack.Screen 
+              name="profile-setup" 
+              options={{
+                animation: 'slide_from_right',
+              }}
+            />
+            <Stack.Screen 
+              name="cycle-setup" 
+              options={{
+                animation: 'slide_from_right',
+              }}
+            />
+            <Stack.Screen 
+              name="home" 
+              options={{
+                animation: 'fade',
+              }}
+            />
+            <Stack.Screen 
+              name="calendar" 
+              options={{
+                animation: 'slide_from_right',
+              }}
+            />
+            <Stack.Screen 
+              name="records" 
+              options={{
+                animation: 'slide_from_right',
+              }}
+            />
+            <Stack.Screen 
+              name="analytics" 
+              options={{
+                animation: 'slide_from_right',
+              }}
+            />
+            <Stack.Screen 
+              name="settings" 
+              options={{
+                animation: 'slide_from_right',
+              }}
+            />
+          </Stack>
+        </View>
+
+        {/* Sidebar Drawer (apenas em telas específicas) */}
+        {shouldShowHeader && (
+          <SidebarDrawer
+            isOpen={isDrawerOpen}
+            onClose={handleDrawerClose}
+            currentScreen={currentScreen}
+          />
+        )}
+
+        {/* Status Bar */}
+        <StatusBar 
+          style={theme?.mode === 'dark' ? 'light' : 'dark'} 
+          backgroundColor={theme?.colors.background}
+        />
+      </View>
     </GestureHandlerRootView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  appContainer: {
+    flex: 1,
+  },
+  stackContainer: {
+    flex: 1,
+  },
+});

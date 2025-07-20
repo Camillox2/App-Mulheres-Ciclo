@@ -1,9 +1,10 @@
-// hooks/useAdaptiveTheme.ts
+// hooks/useAdaptiveTheme.ts - VERSÃO ATUALIZADA
 import { useState, useEffect } from 'react';
 import moment from 'moment';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { SOPHISTICATED_COLORS, createThemeUtils } from '../constants/desingSystem';
 
-export type CyclePhase = 'menstrual' | 'postMenstrual' | 'fertile' | 'preMenstrual';
+export type CyclePhase = 'menstrual' | 'postMenstrual' | 'fertile' | 'ovulation' | 'preMenstrual';
 export type ThemeMode = 'light' | 'dark';
 
 interface PhaseColors {
@@ -12,8 +13,19 @@ interface PhaseColors {
   accent: string;
   background: string;
   surface: string;
-  gradients: string[];
+  text: {
+    primary: string;
+    secondary: string;
+    tertiary: string;
+    disabled: string;
+  };
+  gradients: {
+    primary: string[];
+    secondary: string[];
+    card: string[];
+  };
   particles: string;
+  border: string;
 }
 
 interface AdaptiveTheme {
@@ -22,126 +34,62 @@ interface AdaptiveTheme {
   colors: PhaseColors;
   intensity: number;
   nextPhaseIn: number;
+  utils: ReturnType<typeof createThemeUtils>;
+  // Propriedades de compatibilidade para não quebrar código existente
+  gradients?: string[];
 }
-
-const PHASE_COLORS = {
-  light: {
-    menstrual: {
-      primary: '#E74C3C',
-      secondary: '#FF6B9D',
-      accent: '#FFB4B4',
-      background: '#FFF5F5',
-      surface: '#FFFFFF',
-      gradients: ['#FFB4B4', '#FF6B9D', '#E74C3C'],
-      particles: '#FF6B9D'
-    },
-    postMenstrual: {
-      primary: '#27AE60',
-      secondary: '#58D68D',
-      accent: '#85E0A3',
-      background: '#F8FFF8',
-      surface: '#FFFFFF',
-      gradients: ['#85E0A3', '#58D68D', '#27AE60'],
-      particles: '#58D68D'
-    },
-    fertile: {
-      primary: '#FF4500',
-      secondary: '#FF6347',
-      accent: '#FFD700',
-      background: '#FFFAF0',
-      surface: '#FFFFFF',
-      gradients: ['#FFD700', '#FF6347', '#FF4500'],
-      particles: '#FF6347'
-    },
-    preMenstrual: {
-      primary: '#8E44AD',
-      secondary: '#BB86FC',
-      accent: '#E1BEE7',
-      background: '#FAF8FF',
-      surface: '#FFFFFF',
-      gradients: ['#E1BEE7', '#BB86FC', '#8E44AD'],
-      particles: '#BB86FC'
-    }
-  },
-  dark: {
-    menstrual: {
-      primary: '#C0392B',
-      secondary: '#E74C3C',
-      accent: '#FF6B9D',
-      background: '#1A0F0F',
-      surface: '#2D1B1B',
-      gradients: ['#2D1B1B', '#C0392B', '#E74C3C'],
-      particles: '#E74C3C'
-    },
-    postMenstrual: {
-      primary: '#1E8449',
-      secondary: '#27AE60',
-      accent: '#58D68D',
-      background: '#0F1A0F',
-      surface: '#1B2D1B',
-      gradients: ['#1B2D1B', '#1E8449', '#27AE60'],
-      particles: '#27AE60'
-    },
-    fertile: {
-      primary: '#CC3700',
-      secondary: '#FF4500',
-      accent: '#FFD700',
-      background: '#1A1000',
-      surface: '#2D2000',
-      gradients: ['#2D2000', '#CC3700', '#FF4500'],
-      particles: '#FF4500'
-    },
-    preMenstrual: {
-      primary: '#6A1B9A',
-      secondary: '#8E44AD',
-      accent: '#BB86FC',
-      background: '#1A0F1A',
-      surface: '#2D1B2D',
-      gradients: ['#2D1B2D', '#6A1B9A', '#8E44AD'],
-      particles: '#8E44AD'
-    }
-  }
-};
 
 export const useAdaptiveTheme = () => {
   const [mode, setMode] = useState<ThemeMode>('light');
   const [currentTheme, setCurrentTheme] = useState<AdaptiveTheme | null>(null);
 
-  // Calcula a fase atual do ciclo
-  const getCurrentPhase = async (): Promise<{phase: CyclePhase, intensity: number, nextPhaseIn: number}> => {
+  // Calcula a fase atual do ciclo com melhor precisão
+  const getCurrentPhase = async (): Promise<{
+    phase: CyclePhase;
+    intensity: number;
+    nextPhaseIn: number;
+  }> => {
     try {
       const cycleData = await AsyncStorage.getItem('cycleData');
       if (!cycleData) {
         return { phase: 'menstrual', intensity: 0.8, nextPhaseIn: 0 };
       }
 
-      const { lastPeriodDate, averageCycleLength } = JSON.parse(cycleData);
+      const { lastPeriodDate, averageCycleLength, averagePeriodLength } = JSON.parse(cycleData);
       const lastPeriod = moment(lastPeriodDate);
       const today = moment();
-      const dayOfCycle = today.diff(lastPeriod, 'days') + 1;
+      const daysSinceLastPeriod = today.diff(lastPeriod, 'days');
       
       // Normaliza para o ciclo atual
-      const normalizedDay = ((dayOfCycle - 1) % averageCycleLength) + 1;
+      const normalizedDay = ((daysSinceLastPeriod % averageCycleLength) + averageCycleLength) % averageCycleLength + 1;
       
       let phase: CyclePhase;
       let nextPhaseIn: number;
       
-      if (normalizedDay >= 1 && normalizedDay <= 5) {
+      // Calcula a ovulação baseada no ciclo (tipicamente 14 dias antes do fim)
+      const ovulationDay = averageCycleLength - 14;
+      const fertileStart = ovulationDay - 5;
+      const fertileEnd = ovulationDay + 1;
+      
+      if (normalizedDay >= 1 && normalizedDay <= averagePeriodLength) {
         phase = 'menstrual';
-        nextPhaseIn = 6 - normalizedDay;
-      } else if (normalizedDay >= 6 && normalizedDay <= 11) {
+        nextPhaseIn = averagePeriodLength + 1 - normalizedDay;
+      } else if (normalizedDay > averagePeriodLength && normalizedDay < fertileStart) {
         phase = 'postMenstrual';
-        nextPhaseIn = 12 - normalizedDay;
-      } else if (normalizedDay >= 12 && normalizedDay <= 16) {
+        nextPhaseIn = fertileStart - normalizedDay;
+      } else if (normalizedDay === ovulationDay) {
+        phase = 'ovulation';
+        nextPhaseIn = 1; // Ovulação dura 1 dia
+      } else if (normalizedDay >= fertileStart && normalizedDay <= fertileEnd) {
         phase = 'fertile';
-        nextPhaseIn = 17 - normalizedDay;
+        nextPhaseIn = fertileEnd + 1 - normalizedDay;
       } else {
         phase = 'preMenstrual';
         nextPhaseIn = (averageCycleLength + 1) - normalizedDay;
       }
       
-      // Calcula intensidade baseada na proximidade do meio da fase
-      const intensity = calculatePhaseIntensity(normalizedDay, phase, averageCycleLength);
+      // Calcula intensidade baseada na posição dentro da fase
+      const intensity = calculatePhaseIntensity(normalizedDay, phase, averageCycleLength, averagePeriodLength);
       
       return { phase, intensity, nextPhaseIn };
       
@@ -151,31 +99,50 @@ export const useAdaptiveTheme = () => {
     }
   };
 
-  // Calcula intensidade da fase
-  const calculatePhaseIntensity = (dayOfCycle: number, phase: CyclePhase, cycleLength: number): number => {
-    let phaseRange: [number, number];
+  // Calcula intensidade da fase com base em curvas naturais
+  const calculatePhaseIntensity = (
+    dayOfCycle: number, 
+    phase: CyclePhase, 
+    cycleLength: number,
+    periodLength: number
+  ): number => {
+    const ovulationDay = cycleLength - 14;
     
     switch (phase) {
       case 'menstrual':
-        phaseRange = [1, 5];
-        break;
+        // Intensidade alta no meio da menstruação
+        const midMenstrual = Math.ceil(periodLength / 2);
+        const distanceFromMidMenstrual = Math.abs(dayOfCycle - midMenstrual);
+        return Math.max(0.6, 1.0 - (distanceFromMidMenstrual / midMenstrual) * 0.4);
+        
       case 'postMenstrual':
-        phaseRange = [6, 11];
-        break;
+        // Intensidade cresce gradualmente após a menstruação
+        const postMenstrualDays = ovulationDay - 5 - periodLength;
+        const dayInPhase = dayOfCycle - periodLength;
+        return Math.min(0.9, 0.4 + (dayInPhase / postMenstrualDays) * 0.5);
+        
       case 'fertile':
-        phaseRange = [12, 16];
-        break;
+        // Intensidade alta próximo à ovulação
+        const distanceFromOvulation = Math.abs(dayOfCycle - ovulationDay);
+        return Math.max(0.7, 1.0 - (distanceFromOvulation / 3) * 0.3);
+        
+      case 'ovulation':
+        // Intensidade máxima
+        return 1.0;
+        
       case 'preMenstrual':
-        phaseRange = [17, cycleLength];
-        break;
+        // Intensidade varia ao longo da fase
+        const preMenstrualStart = ovulationDay + 2;
+        const dayInPreMenstrual = dayOfCycle - preMenstrualStart;
+        const preMenstrualLength = cycleLength - preMenstrualStart;
+        
+        // Curva que simula mudanças hormonais
+        const progress = dayInPreMenstrual / preMenstrualLength;
+        return 0.5 + Math.sin(progress * Math.PI) * 0.4;
+        
+      default:
+        return 0.7;
     }
-    
-    const [start, end] = phaseRange;
-    const middle = Math.floor((start + end) / 2);
-    const distanceFromMiddle = Math.abs(dayOfCycle - middle);
-    const maxDistance = Math.floor((end - start) / 2);
-    
-    return Math.max(0.4, 1.0 - (distanceFromMiddle / maxDistance) * 0.6);
   };
 
   // Toggle entre modo claro e escuro
@@ -189,27 +156,60 @@ export const useAdaptiveTheme = () => {
   // Atualiza tema baseado na fase atual
   const updateTheme = async () => {
     const { phase, intensity, nextPhaseIn } = await getCurrentPhase();
-    const colors = PHASE_COLORS[mode][phase];
+    const colors = SOPHISTICATED_COLORS[mode][phase];
+    const utils = createThemeUtils(colors);
     
-    setCurrentTheme({
+    // Cria tema com estrutura compatível
+    const theme: AdaptiveTheme = {
       mode,
       phase,
       colors,
       intensity,
-      nextPhaseIn
-    });
+      nextPhaseIn,
+      utils,
+      // Propriedade de compatibilidade
+      gradients: colors.gradients.primary,
+    };
+    
+    setCurrentTheme(theme);
   };
 
   // Carrega configurações salvas
   const loadSavedMode = async () => {
     try {
       const savedMode = await AsyncStorage.getItem('themeMode');
-      if (savedMode) {
-        setMode(savedMode as ThemeMode);
+      if (savedMode && (savedMode === 'light' || savedMode === 'dark')) {
+        setMode(savedMode);
       }
     } catch (error) {
       console.error('Erro ao carregar modo do tema:', error);
     }
+  };
+
+  // Funções utilitárias expostas
+  const getContrastColor = (backgroundColor: string): string => {
+    if (!currentTheme) return '#000000';
+    return currentTheme.utils.getTextColor(backgroundColor, mode);
+  };
+
+  const withOpacity = (color: string, opacity: number): string => {
+    if (!currentTheme) return color;
+    return currentTheme.utils.withOpacity(color, opacity);
+  };
+
+  const generateGradient = (baseColor?: string, intensity?: number): string[] => {
+    if (!currentTheme) return ['#FF6B9D', '#FFB4D6'];
+    
+    if (baseColor) {
+      return currentTheme.utils.generateGradient(baseColor, intensity);
+    }
+    
+    return currentTheme.colors.gradients.primary;
+  };
+
+  const getElevation = (level: number) => {
+    if (!currentTheme) return {};
+    return currentTheme.utils.getElevation(level);
   };
 
   // Inicialização
@@ -221,11 +221,30 @@ export const useAdaptiveTheme = () => {
     updateTheme();
   }, [mode]);
 
+  // Auto-update do tema baseado no tempo (opcional)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      updateTheme();
+    }, 60000 * 60); // Atualiza a cada hora
+
+    return () => clearInterval(interval);
+  }, [mode]);
+
   return {
     theme: currentTheme,
     toggleMode,
     updateTheme,
     isLightMode: mode === 'light',
-    isDarkMode: mode === 'dark'
+    isDarkMode: mode === 'dark',
+    
+    // Utilitários expostos
+    getContrastColor,
+    withOpacity,
+    generateGradient,
+    getElevation,
+    
+    // Informações adicionais
+    phaseProgress: currentTheme?.intensity || 0,
+    daysUntilNextPhase: currentTheme?.nextPhaseIn || 0,
   };
 };
