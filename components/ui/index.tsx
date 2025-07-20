@@ -197,7 +197,7 @@ export const Button: React.FC<ButtonProps> = ({
           style={style}
         >
           <LinearGradient
-            colors={(theme.gradients ?? ['#FF6B9D', '#FFB4D6']) as [import('react-native').ColorValue, import('react-native').ColorValue, ...import('react-native').ColorValue[]]}
+            colors={['#FF6B9D', '#FFB4D6'] as [import('react-native').ColorValue, import('react-native').ColorValue]}
             style={[buttonStyle, { backgroundColor: undefined, borderWidth: 0 }]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
@@ -341,7 +341,7 @@ export const Card: React.FC<CardProps> = ({
     if (gradient) {
       return (
         <LinearGradient
-          colors={(theme.gradients ?? ['#FFFFFF', '#F8F9FA']) as [import('react-native').ColorValue, import('react-native').ColorValue, ...import('react-native').ColorValue[]]}
+          colors={['#FFFFFF', '#F8F9FA'] as [import('react-native').ColorValue, import('react-native').ColorValue]}
           style={[cardStyle, style]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
@@ -630,7 +630,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
       >
         {gradient ? (
           <LinearGradient
-            colors={(theme.gradients ?? [theme.colors.primary, theme.colors.secondary]) as [import('react-native').ColorValue, import('react-native').ColorValue, ...import('react-native').ColorValue[]]}
+            colors={[theme.colors.primary, theme.colors.secondary] as [import('react-native').ColorValue, import('react-native').ColorValue]}
             style={styles.progressGradient}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}

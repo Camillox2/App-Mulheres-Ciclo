@@ -1,4 +1,4 @@
-// app/calendar.tsx - VERSÃO ULTRA OTIMIZADA
+// app/calendar.tsx - VERSÃO LINDA E CORRIGIDA
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
@@ -12,19 +12,17 @@ import {
   Modal,
   SafeAreaView,
   Pressable,
-  InteractionManager,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import { useAdaptiveTheme } from '../hooks/useAdaptiveTheme';
 import { getDayInfo, DayInfo } from '../hooks/cycleCalculations';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import moment from 'moment';
 
 const { width, height } = Dimensions.get('window');
-const CALENDAR_PADDING = 16;
+const CALENDAR_PADDING = 20;
 const CALENDAR_WIDTH = width - (CALENDAR_PADDING * 2);
-const DAY_SIZE = Math.floor((CALENDAR_WIDTH - 48) / 7);
+const DAY_SIZE = Math.floor((CALENDAR_WIDTH - 42) / 7); // 6px * 7 gaps = 42
 
 interface CycleData {
   lastPeriodDate: string;
@@ -34,91 +32,124 @@ interface CycleData {
 
 type PhaseType = 'menstrual' | 'postMenstrual' | 'fertile' | 'ovulation' | 'preMenstrual';
 
-// Cache para cores das fases
-const PHASE_COLORS_CACHE = {
-  menstrual: ['#FF6B9D', '#E74C3C'],
-  postMenstrual: ['#58D68D', '#27AE60'],
-  fertile: ['#FFD700', '#FF6347'],
-  ovulation: ['#FFA500', '#FF8C00'],
-  preMenstrual: ['#BB86FC', '#8E44AD'],
-} as const;
+// Cores mais bonitas e suaves
+const BEAUTIFUL_COLORS = {
+  menstrual: {
+    gradient: ['#FF9A9E', '#FECFEF', '#FECFEF'],
+    primary: '#FF6B9D',
+    text: '#FFFFFF'
+  },
+  postMenstrual: {
+    gradient: ['#A8E6CF', '#DCEDC1', '#B8E994'],
+    primary: '#27AE60',
+    text: '#FFFFFF'
+  },
+  fertile: {
+    gradient: ['#FFB347', '#FFCC5C', '#FFD93D'],
+    primary: '#FF8C42',
+    text: '#FFFFFF'
+  },
+  ovulation: {
+    gradient: ['#FFE066', '#FFEB3B', '#FFF176'],
+    primary: '#FFC107',
+    text: '#2C2C2C'
+  },
+  preMenstrual: {
+    gradient: ['#B39DDB', '#CE93D8', '#E1BEE7'],
+    primary: '#9C27B0',
+    text: '#FFFFFF'
+  }
+};
 
-// Dados educativos - versão compacta
 const PHASE_INFO = {
   menstrual: {
     name: 'Menstruação',
     emoji: '🌸',
     description: 'Período de renovação e autocuidado',
-    tips: ['Descanse bastante', 'Mantenha-se hidratada', 'Use calor para aliviar cólicas'],
-    hormones: 'Estrogênio e progesterona baixos'
+    color: '#FF6B9D'
   },
   postMenstrual: {
     name: 'Pós-Menstrual',
     emoji: '🌱',
-    description: 'Energia renovada e disposição',
-    tips: ['Aproveite para exercícios', 'Inicie novos projetos', 'Socialize mais'],
-    hormones: 'Estrogênio em ascensão'
+    description: 'Energia renovada',
+    color: '#27AE60'
   },
   fertile: {
     name: 'Período Fértil',
     emoji: '🔥',
-    description: 'Alta energia e criatividade',
-    tips: ['Use proteção se necessário', 'Aproveite a energia criativa', 'Mantenha-se ativa'],
-    hormones: 'Estrogênio em alta'
+    description: 'Alta energia',
+    color: '#FF8C42'
   },
   ovulation: {
     name: 'Ovulação',
     emoji: '⭐',
-    description: 'Pico de energia e fertilidade',
-    tips: ['Hidrate-se bem', 'Aproveite a energia extra', 'Observe sinais do corpo'],
-    hormones: 'Pico de LH e estrogênio'
+    description: 'Pico de fertilidade',
+    color: '#FFC107'
   },
   preMenstrual: {
-    name: 'Pré-Menstrual',
+    name: 'TPM',
     emoji: '💜',
-    description: 'Preparação e introspecção',
-    tips: ['Seja paciente consigo mesma', 'Pratique relaxamento', 'Exercícios leves ajudam'],
-    hormones: 'Progesterona alta, depois queda'
+    description: 'Introspecção',
+    color: '#9C27B0'
   }
-} as const;
+};
 
-// Componente de dia otimizado com shouldComponentUpdate
-const CalendarDay = React.memo<{
+// Componente do dia - TOTALMENTE REFEITO
+const BeautifulCalendarDay = React.memo<{
   dayInfo: DayInfo;
   onPress: (dayInfo: DayInfo) => void;
   theme: any;
 }>(({ dayInfo, onPress, theme }) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
 
+  // Animação de toque
   const handlePress = useCallback(() => {
-    // Feedback tátil instantâneo
     Animated.sequence([
       Animated.timing(scaleAnim, {
-        toValue: 0.85,
-        duration: 80,
+        toValue: 0.9,
+        duration: 100,
         useNativeDriver: true,
       }),
-      Animated.timing(scaleAnim, {
+      Animated.spring(scaleAnim, {
         toValue: 1,
-        duration: 120,
+        tension: 300,
+        friction: 10,
         useNativeDriver: true,
       }),
     ]).start();
     
-    // Delay pequeno para melhor UX
-    setTimeout(() => onPress(dayInfo), 50);
+    onPress(dayInfo);
   }, [dayInfo, onPress]);
 
-  // Cache das cores para evitar recálculos
-  const colors = useMemo(() => PHASE_COLORS_CACHE[dayInfo.phase], [dayInfo.phase]);
-  const intensity = useMemo(() => Math.max(0.4, dayInfo.phaseIntensity * 0.9), [dayInfo.phaseIntensity]);
+  // Pulso para o dia atual
+  useEffect(() => {
+    if (dayInfo.isToday) {
+      const pulse = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.1,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      pulse.start();
+      return () => pulse.stop();
+    }
+  }, [dayInfo.isToday]);
 
-  // Renderização condicional para dias fora do mês
+  // Se não é do mês atual, mostrar discretamente
   if (!dayInfo.isCurrentMonth) {
     return (
-      <View style={styles.dayContainer}>
+      <View style={[styles.dayContainer, { width: DAY_SIZE, height: DAY_SIZE }]}>
         <View style={styles.emptyDay}>
-          <Text style={[styles.dayNumber, { color: theme.colors.text?.disabled || '#CCC' }]}>
+          <Text style={[styles.emptyDayText, { color: theme.colors.text.tertiary }]}>
             {dayInfo.date.format('D')}
           </Text>
         </View>
@@ -126,74 +157,83 @@ const CalendarDay = React.memo<{
     );
   }
 
-  const gradientColors: [string, string] = [
-    `${colors[0]}${Math.round(intensity * 255).toString(16).padStart(2, '0')}`,
-    `${colors[1]}${Math.round(intensity * 255).toString(16).padStart(2, '0')}`,
-  ];
+  const phaseColors = BEAUTIFUL_COLORS[dayInfo.phase];
+  const intensity = Math.max(0.3, dayInfo.phaseIntensity);
 
   return (
-    <View style={styles.dayContainer}>
-      <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-        <Pressable
+    <View style={[styles.dayContainer, { width: DAY_SIZE, height: DAY_SIZE }]}>
+      <Animated.View 
+        style={[
+          { transform: [{ scale: scaleAnim }, { scale: dayInfo.isToday ? pulseAnim : 1 }] }
+        ]}
+      >
+        <TouchableOpacity
           style={[
-            styles.dayButton,
-            {
-              borderColor: dayInfo.isToday ? theme.colors.primary : 'transparent',
-              borderWidth: dayInfo.isToday ? 2 : 0,
-            },
+            styles.modernDayButton,
+            dayInfo.isToday && styles.todayButton,
           ]}
           onPress={handlePress}
-          android_ripple={{ color: 'rgba(255,255,255,0.3)', borderless: true }}
+          activeOpacity={0.8}
         >
           <LinearGradient
-            colors={gradientColors}
+            colors={
+              [
+                ...phaseColors.gradient.map(
+                  color => `${color}${Math.round(intensity * 255).toString(16).padStart(2, '0')}`
+                )
+              ] as [import('react-native').ColorValue, import('react-native').ColorValue, ...import('react-native').ColorValue[]]
+            }
             style={styles.dayGradient}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
           />
           
+          {/* Conteúdo do dia */}
           <View style={styles.dayContent}>
+            {/* APENAS UM NÚMERO - O DIA */}
             <Text
               style={[
-                styles.dayNumber,
+                styles.modernDayNumber,
                 {
-                  color: dayInfo.isToday ? theme.colors.primary : 'white',
-                  fontWeight: dayInfo.isToday ? '700' : '600',
+                  color: dayInfo.isToday ? theme.colors.primary : phaseColors.text,
+                  fontSize: dayInfo.isToday ? 18 : 16,
+                  fontWeight: dayInfo.isToday ? '800' : '600',
                 },
               ]}
             >
               {dayInfo.date.format('D')}
             </Text>
             
-            <Text style={styles.pregnancyText}>
-              {dayInfo.pregnancyChance}%
-            </Text>
-            
-            <View style={[styles.phaseIndicator, { backgroundColor: colors[0] }]} />
+            {/* Indicadores visuais pequenos */}
+            <View style={styles.indicators}>
+              {/* Indicador de fertilidade */}
+              {dayInfo.pregnancyChance > 20 && (
+                <View style={[styles.fertilityDot, { backgroundColor: phaseColors.primary }]} />
+              )}
+              
+              {/* Indicador de fase */}
+              <View style={[styles.phaseDot, { backgroundColor: phaseColors.primary }]} />
+            </View>
+
+            {/* Borda especial para hoje */}
+            {dayInfo.isToday && (
+              <View style={[styles.todayBorder, { borderColor: theme.colors.primary }]} />
+            )}
           </View>
-        </Pressable>
+        </TouchableOpacity>
       </Animated.View>
     </View>
   );
-}, (prevProps, nextProps) => {
-  // Otimização: só re-renderiza se algo relevante mudou
-  return (
-    prevProps.dayInfo.date.isSame(nextProps.dayInfo.date, 'day') &&
-    prevProps.dayInfo.phase === nextProps.dayInfo.phase &&
-    prevProps.dayInfo.pregnancyChance === nextProps.dayInfo.pregnancyChance &&
-    prevProps.dayInfo.isToday === nextProps.dayInfo.isToday &&
-    prevProps.theme.colors.primary === nextProps.theme.colors.primary
-  );
 });
 
-// Modal de detalhes do dia - versão simplificada
-const DayDetailModal = React.memo<{
+// Modal melhorado
+const BeautifulDayModal = React.memo<{
   visible: boolean;
   onClose: () => void;
   dayInfo: DayInfo | null;
   theme: any;
 }>(({ visible, onClose, dayInfo, theme }) => {
-  const slideAnim = useRef(new Animated.Value(300)).current;
+  const slideAnim = useRef(new Animated.Value(height)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -202,25 +242,25 @@ const DayDetailModal = React.memo<{
         Animated.spring(slideAnim, {
           toValue: 0,
           useNativeDriver: true,
-          tension: 100,
+          tension: 80,
           friction: 8,
         }),
         Animated.timing(opacityAnim, {
           toValue: 1,
-          duration: 200,
+          duration: 300,
           useNativeDriver: true,
         }),
       ]).start();
     } else {
       Animated.parallel([
         Animated.timing(slideAnim, {
-          toValue: 300,
-          duration: 200,
+          toValue: height,
+          duration: 250,
           useNativeDriver: true,
         }),
         Animated.timing(opacityAnim, {
           toValue: 0,
-          duration: 200,
+          duration: 250,
           useNativeDriver: true,
         }),
       ]).start();
@@ -230,6 +270,7 @@ const DayDetailModal = React.memo<{
   if (!dayInfo) return null;
 
   const phaseInfo = PHASE_INFO[dayInfo.phase];
+  const phaseColors = BEAUTIFUL_COLORS[dayInfo.phase];
 
   return (
     <Modal
@@ -246,69 +287,76 @@ const DayDetailModal = React.memo<{
         
         <Animated.View
           style={[
-            styles.dayModal,
+            styles.beautifulModal,
             {
               backgroundColor: theme.colors.surface,
               transform: [{ translateY: slideAnim }],
             },
           ]}
         >
-          <View style={styles.modalHeader}>
-            <View style={styles.modalTitleRow}>
+          {/* Header com gradiente */}
+          <LinearGradient
+            colors={phaseColors.gradient as [import('react-native').ColorValue, import('react-native').ColorValue, ...import('react-native').ColorValue[]]}
+            style={styles.modalHeader}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <TouchableOpacity style={styles.modalCloseButton} onPress={onClose}>
+              <Text style={styles.modalCloseText}>×</Text>
+            </TouchableOpacity>
+            
+            <View style={styles.modalHeaderContent}>
               <Text style={styles.modalEmoji}>{phaseInfo.emoji}</Text>
-              <View style={styles.modalTitleContainer}>
-                <Text style={[styles.modalDate, { color: theme.colors.primary }]}>
-                  {dayInfo.date.format('DD')}
-                </Text>
-                <Text style={[styles.modalDay, { color: theme.colors.text?.primary }]}>
-                  {dayInfo.date.format('dddd')}
-                </Text>
-              </View>
-              <Pressable style={styles.closeBtn} onPress={onClose}>
-                <Text style={[styles.closeBtnText, { color: theme.colors.primary }]}>×</Text>
-              </Pressable>
+              <Text style={styles.modalDate}>
+                {dayInfo.date.format('DD')}
+              </Text>
+              <Text style={styles.modalDayName}>
+                {dayInfo.date.format('dddd, DD [de] MMMM')}
+              </Text>
             </View>
-          </View>
+          </LinearGradient>
 
-          <View style={styles.modalContent}>
-            <View style={[styles.phaseCard, { backgroundColor: `${theme.colors.primary}15` }]}>
-              <Text style={[styles.phaseName, { color: theme.colors.primary }]}>
+          {/* Conteúdo */}
+          <View style={styles.modalBody}>
+            {/* Fase atual */}
+            <View style={[styles.phaseSection, { borderLeftColor: phaseInfo.color }]}>
+              <Text style={[styles.phaseName, { color: theme.colors.text.primary }]}>
                 {phaseInfo.name}
               </Text>
-              <Text style={[styles.phaseDesc, { color: theme.colors.text?.secondary }]}>
+              <Text style={[styles.phaseDescription, { color: theme.colors.text.secondary }]}>
                 {phaseInfo.description}
               </Text>
             </View>
 
-            <View style={styles.statsGrid}>
-              <View style={[styles.statBox, { backgroundColor: theme.colors.surface }]}>
-                <Text style={[styles.statLabel, { color: theme.colors.text?.secondary }]}>
+            {/* Estatísticas */}
+            <View style={styles.statsSection}>
+              <View style={[styles.statItem, { backgroundColor: theme.colors.background }]}>
+                <Text style={[styles.statLabel, { color: theme.colors.text.secondary }]}>
                   Dia do Ciclo
                 </Text>
-                <Text style={[styles.statValue, { color: theme.colors.primary }]}>
-                  {dayInfo.dayOfCycle}
+                <Text style={[styles.statValue, { color: phaseInfo.color }]}>
+                  {dayInfo.dayOfCycle}º
                 </Text>
               </View>
               
-              <View style={[styles.statBox, { backgroundColor: theme.colors.surface }]}>
-                <Text style={[styles.statLabel, { color: theme.colors.text?.secondary }]}>
+              <View style={[styles.statItem, { backgroundColor: theme.colors.background }]}>
+                <Text style={[styles.statLabel, { color: theme.colors.text.secondary }]}>
                   Fertilidade
                 </Text>
-                <Text style={[styles.statValue, { color: theme.colors.primary }]}>
+                <Text style={[styles.statValue, { color: phaseInfo.color }]}>
                   {dayInfo.pregnancyChance}%
                 </Text>
               </View>
             </View>
 
-            <View style={[styles.tipsSection, { backgroundColor: theme.colors.surface }]}>
-              <Text style={[styles.tipsTitle, { color: theme.colors.primary }]}>
-                💡 Dicas para hoje
+            {/* Dicas */}
+            <View style={[styles.tipsSection, { backgroundColor: `${phaseInfo.color}10` }]}>
+              <Text style={[styles.tipsTitle, { color: phaseInfo.color }]}>
+                💡 Dica para hoje
               </Text>
-              {phaseInfo.tips.slice(0, 2).map((tip, index) => (
-                <Text key={index} style={[styles.tipText, { color: theme.colors.text?.primary }]}>
-                  • {tip}
-                </Text>
-              ))}
+              <Text style={[styles.tipText, { color: theme.colors.text.primary }]}>
+                {phaseInfo.description}. Aproveite este momento único do seu ciclo.
+              </Text>
             </View>
           </View>
         </Animated.View>
@@ -317,110 +365,18 @@ const DayDetailModal = React.memo<{
   );
 });
 
-// Modal educativo sobre fases - versão compacta
-const PhaseEducationModal = React.memo<{
-  visible: boolean;
-  onClose: () => void;
-  phase: PhaseType;
-  theme: any;
-}>(({ visible, onClose, phase, theme }) => {
-  const translateY = useRef(new Animated.Value(height)).current;
-
-  useEffect(() => {
-    if (visible) {
-      Animated.spring(translateY, {
-        toValue: 0,
-        useNativeDriver: true,
-        tension: 65,
-        friction: 8,
-      }).start();
-    } else {
-      Animated.timing(translateY, {
-        toValue: height,
-        duration: 250,
-        useNativeDriver: true,
-      }).start();
-    }
-  }, [visible]);
-
-  const phaseInfo = PHASE_INFO[phase];
-
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="none"
-      onRequestClose={onClose}
-      statusBarTranslucent
-    >
-      <View style={styles.modalOverlay}>
-        <Pressable style={styles.modalBackground} onPress={onClose} />
-        
-        <Animated.View
-          style={[
-            styles.phaseModal,
-            {
-              backgroundColor: theme.colors.surface,
-              transform: [{ translateY }],
-            },
-          ]}
-        >
-          <LinearGradient
-            colors={theme.colors.gradients?.primary || [theme.colors.primary, theme.colors.secondary]}
-            style={styles.phaseModalHeader}
-          >
-            <Pressable style={styles.phaseModalClose} onPress={onClose}>
-              <Text style={styles.phaseModalCloseText}>×</Text>
-            </Pressable>
-            
-            <Text style={styles.phaseModalEmoji}>{phaseInfo.emoji}</Text>
-            <Text style={styles.phaseModalTitle}>{phaseInfo.name}</Text>
-            <Text style={styles.phaseModalSubtitle}>{phaseInfo.description}</Text>
-          </LinearGradient>
-
-          <ScrollView style={styles.phaseModalContent} showsVerticalScrollIndicator={false}>
-            <View style={[styles.hormoneInfo, { backgroundColor: `${theme.colors.primary}10` }]}>
-              <Text style={[styles.hormoneTitle, { color: theme.colors.primary }]}>
-                🧬 Hormônios
-              </Text>
-              <Text style={[styles.hormoneText, { color: theme.colors.text?.secondary }]}>
-                {phaseInfo.hormones}
-              </Text>
-            </View>
-
-            <View style={styles.tipsContainer}>
-              <Text style={[styles.tipsContainerTitle, { color: theme.colors.primary }]}>
-                💡 Dicas de Bem-estar
-              </Text>
-              {phaseInfo.tips.map((tip, index) => (
-                <View key={index} style={[styles.tipItem, { backgroundColor: `${theme.colors.primary}08` }]}>
-                  <Text style={[styles.tipItemText, { color: theme.colors.text?.primary }]}>
-                    • {tip}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          </ScrollView>
-        </Animated.View>
-      </View>
-    </Modal>
-  );
-});
-
 // Componente principal
-export default function CalendarScreen() {
-  const { theme, isLightMode } = useAdaptiveTheme();
+export default function BeautifulCalendarScreen() {
+  const { theme, isDarkMode } = useAdaptiveTheme();
   const [currentMonth, setCurrentMonth] = useState(moment());
   const [cycleData, setCycleData] = useState<CycleData | null>(null);
   const [selectedDay, setSelectedDay] = useState<DayInfo | null>(null);
-  const [dayModalVisible, setDayModalVisible] = useState(false);
-  const [phaseModalVisible, setPhaseModalVisible] = useState(false);
-  const [selectedPhase, setSelectedPhase] = useState<PhaseType>('menstrual');
+  const [modalVisible, setModalVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  // Carrega dados de forma assíncrona
+  // Carrega dados
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -431,22 +387,19 @@ export default function CalendarScreen() {
       } catch (error) {
         console.error('Erro ao carregar dados:', error);
       } finally {
-        setIsLoading(false); // Garante que o loading seja desativado
-        // Usa InteractionManager para melhor performance
-        InteractionManager.runAfterInteractions(() => {
-          Animated.timing(fadeAnim, {
-            toValue: 1,
-            duration: 400,
-            useNativeDriver: true,
-          }).start();
-        });
+        setIsLoading(false);
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 600,
+          useNativeDriver: true,
+        }).start();
       }
     };
 
     loadData();
   }, []);
 
-  // Memoriza cálculos pesados do calendário
+  // Gera os dias do calendário
   const calendarDays = useMemo(() => {
     if (!cycleData) return [];
 
@@ -466,15 +419,9 @@ export default function CalendarScreen() {
     return days;
   }, [currentMonth, cycleData]);
 
-  // Callbacks otimizados
   const handleDayPress = useCallback((dayInfo: DayInfo) => {
     setSelectedDay(dayInfo);
-    setDayModalVisible(true);
-  }, []);
-
-  const handlePhasePress = useCallback((phase: PhaseType) => {
-    setSelectedPhase(phase);
-    setPhaseModalVisible(true);
+    setModalVisible(true);
   }, []);
 
   const navigateMonth = useCallback((direction: 'prev' | 'next') => {
@@ -485,28 +432,16 @@ export default function CalendarScreen() {
     );
   }, []);
 
-  const closeDayModal = useCallback(() => setDayModalVisible(false), []);
-  const closePhaseModal = useCallback(() => setPhaseModalVisible(false), []);
+  const weekDays = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB'];
 
-  // Constantes otimizadas
-  const weekDays = useMemo(() => ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'], []);
-  
-  const phaseItems = useMemo(() => [
-    { phase: 'menstrual' as PhaseType, colors: PHASE_COLORS_CACHE.menstrual },
-    { phase: 'postMenstrual' as PhaseType, colors: PHASE_COLORS_CACHE.postMenstrual },
-    { phase: 'fertile' as PhaseType, colors: PHASE_COLORS_CACHE.fertile },
-    { phase: 'ovulation' as PhaseType, colors: PHASE_COLORS_CACHE.ovulation },
-    { phase: 'preMenstrual' as PhaseType, colors: PHASE_COLORS_CACHE.preMenstrual },
-  ], []);
-
-  if (isLoading || !theme) {
+  if (isLoading) {
     return (
-      <View style={[styles.loadingContainer, { backgroundColor: theme?.colors.background || '#000' }]}>
+      <View style={[styles.loadingContainer, { backgroundColor: theme.colors.background }]}>
         <LinearGradient
-          colors={((theme?.colors.gradients?.primary || ['#FF6B9D', '#FFB4D6']) as [string, string])}
+          colors={['#FF9A9E', '#FECFEF']}
           style={styles.loadingGradient}
         >
-          <Text style={styles.loadingText}>✨ Carregando...</Text>
+          <Text style={styles.loadingText}>✨ Preparando seu calendário...</Text>
         </LinearGradient>
       </View>
     );
@@ -516,9 +451,14 @@ export default function CalendarScreen() {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
         <SafeAreaView style={styles.safeArea}>
+          <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
           <View style={styles.emptyState}>
-            <Text style={[styles.emptyStateText, { color: theme.colors.text?.primary }]}>
+            <Text style={styles.emptyEmoji}>📅</Text>
+            <Text style={[styles.emptyTitle, { color: theme.colors.text.primary }]}>
               Configure seu ciclo primeiro
+            </Text>
+            <Text style={[styles.emptySubtitle, { color: theme.colors.text.secondary }]}>
+              Vá em Configurações para definir os dados do seu ciclo menstrual
             </Text>
           </View>
         </SafeAreaView>
@@ -528,76 +468,81 @@ export default function CalendarScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <StatusBar barStyle={isLightMode ? 'dark-content' : 'light-content'} />
-      
       <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+        
         <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
-          {/* Header compacto */}
-          <View style={styles.header}>
-            <Pressable 
-              style={[styles.navBtn, { backgroundColor: `${theme.colors.primary}15` }]}
+          {/* Header elegante */}
+          <LinearGradient
+            colors={[theme.colors.surface, `${theme.colors.surface}F0`]}
+            style={styles.header}
+          >
+            <TouchableOpacity 
+              style={[styles.navButton, { backgroundColor: `${theme.colors.primary}15` }]}
               onPress={() => navigateMonth('prev')}
             >
-              <Text style={[styles.navBtnText, { color: theme.colors.primary }]}>‹</Text>
-            </Pressable>
+              <Text style={[styles.navIcon, { color: theme.colors.primary }]}>‹</Text>
+            </TouchableOpacity>
             
-            <Text style={[styles.monthText, { color: theme.colors.text?.primary }]}>
-              {currentMonth.format('MMMM YYYY')}
-            </Text>
+            <View style={styles.monthContainer}>
+              <Text style={[styles.monthText, { color: theme.colors.text.primary }]}>
+                {currentMonth.format('MMMM')}
+              </Text>
+              <Text style={[styles.yearText, { color: theme.colors.text.secondary }]}>
+                {currentMonth.format('YYYY')}
+              </Text>
+            </View>
             
-            <Pressable 
-              style={[styles.navBtn, { backgroundColor: `${theme.colors.primary}15` }]}
+            <TouchableOpacity 
+              style={[styles.navButton, { backgroundColor: `${theme.colors.primary}15` }]}
               onPress={() => navigateMonth('next')}
             >
-              <Text style={[styles.navBtnText, { color: theme.colors.primary }]}>›</Text>
-            </Pressable>
-          </View>
+              <Text style={[styles.navIcon, { color: theme.colors.primary }]}>›</Text>
+            </TouchableOpacity>
+          </LinearGradient>
 
           <ScrollView 
             style={styles.scroll}
             showsVerticalScrollIndicator={false}
             bounces={false}
           >
-            {/* Legenda compacta */}
+            {/* Legenda das fases */}
             <View style={[styles.legend, { backgroundColor: theme.colors.surface }]}>
               <ScrollView 
                 horizontal 
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.legendContent}
               >
-                {phaseItems.map((item) => (
-                  <Pressable
-                    key={item.phase}
-                    style={styles.legendItem}
-                    onPress={() => handlePhasePress(item.phase)}
-                  >
+                {Object.entries(PHASE_INFO).map(([phase, info]) => (
+                  <View key={phase} style={styles.legendItem}>
                     <LinearGradient
-                      colors={item.colors}
+                      colors={BEAUTIFUL_COLORS[phase as PhaseType].gradient as [import('react-native').ColorValue, import('react-native').ColorValue, ...import('react-native').ColorValue[]]}
                       style={styles.legendDot}
                     />
-                    <Text style={[styles.legendEmoji]}>
-                      {PHASE_INFO[item.phase].emoji}
+                    <Text style={styles.legendEmoji}>{info.emoji}</Text>
+                    <Text style={[styles.legendText, { color: theme.colors.text.secondary }]}>
+                      {info.name}
                     </Text>
-                  </Pressable>
+                  </View>
                 ))}
               </ScrollView>
             </View>
 
-            {/* Header da semana */}
+            {/* Cabeçalho da semana */}
             <View style={styles.weekHeader}>
               {weekDays.map((day) => (
-                <View key={day} style={styles.weekDay}>
-                  <Text style={[styles.weekDayText, { color: theme.colors.text?.secondary }]}>
+                <View key={day} style={[styles.weekDay, { width: DAY_SIZE }]}>
+                  <Text style={[styles.weekDayText, { color: theme.colors.text.secondary }]}>
                     {day}
                   </Text>
                 </View>
               ))}
             </View>
 
-            {/* Grid otimizado */}
+            {/* Grid do calendário */}
             <View style={styles.calendarGrid}>
               {calendarDays.map((dayInfo) => (
-                <CalendarDay
+                <BeautifulCalendarDay
                   key={dayInfo.date.format('YYYY-MM-DD')}
                   dayInfo={dayInfo}
                   onPress={handleDayPress}
@@ -609,18 +554,11 @@ export default function CalendarScreen() {
         </Animated.View>
       </SafeAreaView>
 
-      {/* Modais */}
-      <DayDetailModal
-        visible={dayModalVisible}
-        onClose={closeDayModal}
+      {/* Modal elegante */}
+      <BeautifulDayModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
         dayInfo={selectedDay}
-        theme={theme}
-      />
-
-      <PhaseEducationModal
-        visible={phaseModalVisible}
-        onClose={closePhaseModal}
-        phase={selectedPhase}
         theme={theme}
       />
     </View>
@@ -637,6 +575,8 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
   },
+  
+  // Loading
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -650,17 +590,32 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     color: 'white',
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 20,
+    fontWeight: '700',
+    textAlign: 'center',
   },
+
+  // Empty state
   emptyState: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 40,
   },
-  emptyStateText: {
+  emptyEmoji: {
+    fontSize: 80,
+    marginBottom: 24,
+  },
+  emptyTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  emptySubtitle: {
     fontSize: 16,
-    fontWeight: '500',
+    textAlign: 'center',
+    lineHeight: 24,
   },
 
   // Header
@@ -669,23 +624,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: CALENDAR_PADDING,
-    paddingVertical: 12,
+    paddingVertical: 20,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
   },
-  navBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  navButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  navBtnText: {
-    fontSize: 20,
+  navIcon: {
+    fontSize: 24,
     fontWeight: 'bold',
   },
+  monthContainer: {
+    alignItems: 'center',
+  },
   monthText: {
-    fontSize: 18,
+    fontSize: 24,
     fontWeight: '700',
     textTransform: 'capitalize',
+  },
+  yearText: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginTop: 2,
   },
 
   // Scroll
@@ -696,110 +664,156 @@ const styles = StyleSheet.create({
 
   // Legenda
   legend: {
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
-    elevation: 1,
+    borderRadius: 16,
+    padding: 16,
+    marginVertical: 16,
+    elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
   },
   legendContent: {
-    paddingHorizontal: 8,
+    alignItems: 'center',
   },
   legendItem: {
     alignItems: 'center',
-    marginHorizontal: 6,
-    paddingVertical: 4,
+    marginHorizontal: 12,
   },
   legendDot: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    marginBottom: 4,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    marginBottom: 6,
   },
   legendEmoji: {
-    fontSize: 14,
+    fontSize: 16,
+    marginBottom: 4,
+  },
+  legendText: {
+    fontSize: 11,
+    fontWeight: '600',
+    textAlign: 'center',
   },
 
   // Week header
   weekHeader: {
     flexDirection: 'row',
-    marginBottom: 6,
+    justifyContent: 'space-around',
+    marginBottom: 12,
+    paddingHorizontal: 3,
   },
   weekDay: {
-    width: DAY_SIZE,
     alignItems: 'center',
-    paddingVertical: 6,
-    marginHorizontal: 4,
+    paddingVertical: 8,
   },
   weekDayText: {
-    fontSize: 11,
-    fontWeight: '600',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
 
   // Calendar grid
   calendarGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    paddingBottom: 20,
+    justifyContent: 'space-around',
+    paddingBottom: 30,
   },
+
+  // Day components
   dayContainer: {
-    width: DAY_SIZE,
-    height: DAY_SIZE,
-    marginHorizontal: 4,
-    marginVertical: 2,
+    marginBottom: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
+  
   emptyDay: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  dayButton: {
-    flex: 1,
-    borderRadius: DAY_SIZE / 2,
-    overflow: 'hidden',
+  emptyDayText: {
+    fontSize: 14,
+    fontWeight: '400',
+    opacity: 0.4,
+  },
+
+  modernDayButton: {
+    width: DAY_SIZE - 4,
+    height: DAY_SIZE - 4,
+    borderRadius: (DAY_SIZE - 4) / 2,
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
+    overflow: 'hidden',
   },
+  
+  todayButton: {
+    borderWidth: 3,
+    borderColor: 'transparent',
+  },
+
   dayGradient: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    borderRadius: DAY_SIZE / 2,
+    borderRadius: (DAY_SIZE - 4) / 2,
   },
+
   dayContent: {
     alignItems: 'center',
     justifyContent: 'center',
-    flex: 1,
-  },
-  dayNumber: {
-    fontSize: 13,
-    fontWeight: '600',
-    marginBottom: 1,
-  },
-  pregnancyText: {
-    fontSize: 7,
-    color: 'rgba(255, 255, 255, 0.9)',
-    fontWeight: 'bold',
-    marginBottom: 1,
-  },
-  phaseIndicator: {
-    width: 2.5,
-    height: 2.5,
-    borderRadius: 1.25,
+    position: 'relative',
+    width: '100%',
+    height: '100%',
   },
 
-  // Modal overlay
+  modernDayNumber: {
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 2,
+  },
+
+  indicators: {
+    flexDirection: 'row',
+    position: 'absolute',
+    bottom: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  fertilityDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    marginRight: 2,
+  },
+
+  phaseDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+  },
+
+  todayBorder: {
+    position: 'absolute',
+    top: -2,
+    left: -2,
+    right: -2,
+    bottom: -2,
+    borderRadius: DAY_SIZE / 2,
+    borderWidth: 2,
+  },
+
+  // Modal
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'flex-end',
   },
   modalBackground: {
     position: 'absolute',
@@ -809,203 +823,134 @@ const styles = StyleSheet.create({
     bottom: 0,
   },
 
-  // Day modal
-  dayModal: {
-    width: width - 32,
-    maxHeight: height * 0.5,
-    borderRadius: 20,
-    padding: 20,
+  beautifulModal: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: height * 0.7,
     elevation: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-  },
-  modalHeader: {
-    marginBottom: 16,
-  },
-  modalTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  modalEmoji: {
-    fontSize: 24,
-    marginRight: 12,
-  },
-  modalTitleContainer: {
-    flex: 1,
-  },
-  modalDate: {
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  modalDay: {
-    fontSize: 14,
-    fontWeight: '500',
-    textTransform: 'capitalize',
-  },
-  closeBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.05)',
-  },
-  closeBtnText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  modalContent: {
-    gap: 12,
-  },
-  phaseCard: {
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-  },
-  phaseName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  phaseDesc: {
-    fontSize: 13,
-    textAlign: 'center',
-    lineHeight: 18,
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  statBox: {
-    flex: 1,
-    borderRadius: 10,
-    padding: 12,
-    alignItems: 'center',
-    elevation: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-  },
-  statLabel: {
-    fontSize: 11,
-    fontWeight: '500',
-    marginBottom: 4,
-  },
-  statValue: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  tipsSection: {
-    borderRadius: 10,
-    padding: 12,
-    elevation: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-  },
-  tipsTitle: {
-    fontSize: 13,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  tipText: {
-    fontSize: 12,
-    lineHeight: 16,
-    marginBottom: 2,
-  },
-
-  // Phase modal
-  phaseModal: {
-    width: width - 20,
-    height: height * 0.7,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    position: 'absolute',
-    bottom: 0,
-    overflow: 'hidden',
-    elevation: 15,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.25,
-    shadowRadius: 8,
+    shadowRadius: 12,
   },
-  phaseModalHeader: {
-    alignItems: 'center',
-    padding: 20,
+
+  modalHeader: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingVertical: 24,
+    paddingHorizontal: 24,
     position: 'relative',
   },
-  phaseModalClose: {
+
+  modalCloseButton: {
     position: 'absolute',
-    top: 12,
-    right: 12,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    top: 16,
+    right: 16,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 10,
   },
-  phaseModalCloseText: {
+
+  modalCloseText: {
     color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  phaseModalEmoji: {
-    fontSize: 32,
-    marginBottom: 8,
-  },
-  phaseModalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
+  },
+
+  modalHeaderContent: {
+    alignItems: 'center',
+  },
+
+  modalEmoji: {
+    fontSize: 48,
+    marginBottom: 8,
+  },
+
+  modalDate: {
+    fontSize: 36,
+    fontWeight: '800',
     color: 'white',
+    marginBottom: 4,
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+
+  modalDayName: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontWeight: '500',
+    textTransform: 'capitalize',
+    textShadowColor: 'rgba(0,0,0,0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 1,
+  },
+
+  modalBody: {
+    padding: 24,
+  },
+
+  phaseSection: {
+    borderLeftWidth: 4,
+    paddingLeft: 16,
+    marginBottom: 24,
+  },
+
+  phaseName: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+
+  phaseDescription: {
+    fontSize: 16,
+    lineHeight: 22,
+  },
+
+  statsSection: {
+    flexDirection: 'row',
+    marginBottom: 24,
+    gap: 12,
+  },
+
+  statItem: {
+    flex: 1,
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+  },
+
+  statLabel: {
+    fontSize: 12,
+    fontWeight: '600',
     marginBottom: 4,
     textAlign: 'center',
   },
-  phaseModalSubtitle: {
-    fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.9)',
+
+  statValue: {
+    fontSize: 24,
+    fontWeight: '800',
     textAlign: 'center',
   },
-  phaseModalContent: {
-    flex: 1,
-    paddingHorizontal: 16,
-    paddingBottom: 20,
-  },
-  hormoneInfo: {
+
+  tipsSection: {
     borderRadius: 12,
     padding: 16,
-    marginBottom: 16,
-    alignItems: 'center',
   },
-  hormoneTitle: {
+
+  tipsTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+
+  tipText: {
     fontSize: 14,
-    fontWeight: 'bold',
-    marginBottom: 6,
-  },
-  hormoneText: {
-    fontSize: 12,
-    textAlign: 'center',
-    lineHeight: 16,
-  },
-  tipsContainer: {
-    marginBottom: 16,
-  },
-  tipsContainerTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    marginBottom: 10,
-  },
-  tipItem: {
-    borderRadius: 8,
-    padding: 10,
-    marginBottom: 6,
-  },
-  tipItemText: {
-    fontSize: 12,
-    lineHeight: 16,
+    lineHeight: 20,
+    fontWeight: '500',
   },
 });
