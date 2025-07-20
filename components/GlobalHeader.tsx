@@ -1,4 +1,4 @@
-// components/GlobalHeader.tsx
+// components/GlobalHeader.tsx - OTIMIZADO PARA TEMA DARK
 import React, { useEffect, useRef } from 'react';
 import {
   View,
@@ -8,6 +8,7 @@ import {
   Animated,
   SafeAreaView,
   Dimensions,
+  StatusBar,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAdaptiveTheme } from '../hooks/useAdaptiveTheme';
@@ -25,10 +26,10 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
   isMenuOpen,
   currentScreen = 'Home',
 }) => {
-  const { theme } = useAdaptiveTheme();
+  const { theme, isDarkMode } = useAdaptiveTheme();
   const menuIconRotation = useRef(new Animated.Value(0)).current;
   const logoScale = useRef(new Animated.Value(1)).current;
-  const phaseIndicatorWidth = useRef(new Animated.Value(0)).current;
+  const phaseIndicatorScale = useRef(new Animated.Value(1)).current;
 
   // Animação do ícone do menu
   useEffect(() => {
@@ -44,13 +45,13 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     const pulseAnimation = Animated.loop(
       Animated.sequence([
         Animated.timing(logoScale, {
-          toValue: 1.05,
-          duration: 2000,
+          toValue: 1.03,
+          duration: 3000,
           useNativeDriver: true,
         }),
         Animated.timing(logoScale, {
           toValue: 1,
-          duration: 2000,
+          duration: 3000,
           useNativeDriver: true,
         }),
       ])
@@ -62,24 +63,45 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
 
   // Animação do indicador de fase
   useEffect(() => {
+    const phaseAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(phaseIndicatorScale, {
+          toValue: 1.1,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(phaseIndicatorScale, {
+          toValue: 1,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    phaseAnimation.start();
+
+    return () => phaseAnimation.stop();
+  }, [theme?.phase]);
+
+  // StatusBar sempre chamado - CORRIGIDO
+  useEffect(() => {
     if (theme) {
-      Animated.timing(phaseIndicatorWidth, {
-        toValue: 1,
-        duration: 1000,
-        useNativeDriver: false,
-      }).start();
+      StatusBar.setBarStyle(isDarkMode ? 'light-content' : 'dark-content', true);
+      if (StatusBar.setBackgroundColor) {
+        StatusBar.setBackgroundColor(theme.colors.background, true);
+      }
     }
-  }, [theme]);
+  }, [isDarkMode, theme]);
+
+  if (!theme) return null;
 
   const menuIconRotate = menuIconRotation.interpolate({
     inputRange: [0, 1],
-    outputRange: ['0deg', '90deg'],
+    outputRange: ['0deg', '180deg'],
   });
 
   type PhaseType = 'menstrual' | 'postMenstrual' | 'fertile' | 'ovulation' | 'preMenstrual';
 
   const getPhaseEmoji = () => {
-    if (!theme) return '🌸';
     const emojiMap: Record<PhaseType, string> = {
       menstrual: '🌸',
       postMenstrual: '🌱',
@@ -91,42 +113,52 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
   };
 
   const getScreenTitle = () => {
-    const titles: Record<'home' | 'calendar' | 'records' | 'analytics' | 'settings', string> = {
-      home: 'Entre Fases',
+    const titles: Record<string, string> = {
+      home: 'EntrePhases',
       calendar: 'Calendário',
       records: 'Registros',
       analytics: 'Estatísticas',
       settings: 'Configurações',
     };
-    const key = currentScreen.toLowerCase() as keyof typeof titles;
+    const key = currentScreen.toLowerCase();
     return titles[key] ?? 'EntrePhases';
   };
 
-  if (!theme) return null;
+  const getPhaseInitial = () => {
+    const initials: Record<PhaseType, string> = {
+      menstrual: 'M',
+      postMenstrual: 'P',
+      fertile: 'F',
+      ovulation: 'O',
+      preMenstrual: 'PM',
+    };
+    return initials[theme.phase as PhaseType] || 'M';
+  };
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
       <LinearGradient
         colors={[
           theme.colors.surface,
-          `${theme.colors.surface}F5`,
-          `${theme.colors.surface}E8`,
+          `${theme.colors.surface}F8`,
+          `${theme.colors.surface}E5`,
         ]}
         style={styles.headerContainer}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       >
-        {/* Indicador de fase superior */}
+        {/* Indicador de intensidade da fase */}
         <View style={styles.phaseIndicator}>
-          <Animated.View
+          <View
             style={[
               styles.phaseBar,
               {
                 backgroundColor: theme.colors.primary,
-                width: phaseIndicatorWidth.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: ['0%', `${(theme.intensity || 0.7) * 100}%`],
-                }),
+                width: `${(theme.intensity || 0.7) * 100}%`,
+                shadowColor: theme.colors.primary,
+                shadowOpacity: 0.3,
+                shadowRadius: 4,
+                elevation: 2,
               },
             ]}
           />
@@ -135,7 +167,13 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
         <View style={styles.headerContent}>
           {/* Botão Menu */}
           <TouchableOpacity
-            style={[styles.menuButton, { backgroundColor: `${theme.colors.primary}15` }]}
+            style={[
+              styles.menuButton,
+              { 
+                backgroundColor: `${theme.colors.primary}20`,
+                borderColor: `${theme.colors.primary}30`,
+              }
+            ]}
             onPress={onMenuPress}
             activeOpacity={0.7}
           >
@@ -160,40 +198,52 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
               ]}
             >
               <Text style={styles.phaseEmoji}>{getPhaseEmoji()}</Text>
-              <Text style={[styles.logoText, { color: theme.colors.primary }]}>
+              <Text style={[styles.logoText, { color: theme.colors.text.primary }]}>
                 {getScreenTitle()}
+              </Text>
+              <Text style={[styles.logoSubtext, { color: theme.colors.text.tertiary }]}>
+                {theme.phase === 'menstrual' ? 'Renovação' :
+                 theme.phase === 'postMenstrual' ? 'Energia' :
+                 theme.phase === 'fertile' ? 'Criatividade' :
+                 theme.phase === 'ovulation' ? 'Vitalidade' : 'Introspecção'}
               </Text>
             </Animated.View>
           </View>
 
           {/* Indicador de Fase */}
-          <View style={styles.phaseIndicatorContainer}>
-            <View
+          <Animated.View 
+            style={[
+              styles.phaseIndicatorContainer,
+              { transform: [{ scale: phaseIndicatorScale }] }
+            ]}
+          >
+            <LinearGradient
+              colors={theme.colors.gradients.primary as [string, string]}
               style={[
                 styles.phaseCircle,
-                { 
-                  backgroundColor: theme.colors.primary,
+                {
                   shadowColor: theme.colors.primary,
+                  shadowOpacity: 0.4,
+                  shadowRadius: 8,
+                  elevation: 4,
                 },
               ]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
             >
               <Text style={styles.phaseText}>
-                {theme.phase === 'menstrual' ? 'M' :
-                 theme.phase === 'postMenstrual' ? 'P' :
-                 theme.phase === 'fertile' ? 'F' :
-                 (theme.phase as PhaseType) === 'ovulation' ? 'O' :
-                 (theme.phase as PhaseType) === 'preMenstrual' ? 'PR' : ''}
+                {getPhaseInitial()}
               </Text>
-            </View>
-          </View>
+            </LinearGradient>
+          </Animated.View>
         </View>
 
-        {/* Sombra inferior */}
+        {/* Sombra inferior sutil */}
         <LinearGradient
           colors={[
             'transparent',
-            `${theme.colors.primary}08`,
-            `${theme.colors.primary}03`,
+            `${theme.colors.primary}06`,
+            `${theme.colors.primary}02`,
           ]}
           style={styles.shadowGradient}
           start={{ x: 0, y: 0 }}
@@ -213,28 +263,29 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   phaseIndicator: {
-    height: 3,
-    backgroundColor: 'rgba(0,0,0,0.05)',
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.1)',
     overflow: 'hidden',
   },
   phaseBar: {
     height: '100%',
-    borderRadius: 1.5,
+    borderRadius: 2,
   },
   headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 15,
-    height: 60,
+    paddingVertical: 16,
+    height: 70,
   },
   menuButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -242,8 +293,8 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   menuIconContainer: {
-    width: 20,
-    height: 16,
+    width: 18,
+    height: 14,
     justifyContent: 'space-between',
   },
   menuLine: {
@@ -261,40 +312,49 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   phaseEmoji: {
-    fontSize: 20,
-    marginBottom: 2,
+    fontSize: 22,
+    marginBottom: 4,
   },
   logoText: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
     letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  logoSubtext: {
+    fontSize: 11,
+    fontWeight: '500',
+    opacity: 0.8,
   },
   phaseIndicatorContainer: {
-    width: 44,
-    height: 44,
+    width: 46,
+    height: 46,
     justifyContent: 'center',
     alignItems: 'center',
   },
   phaseCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
-    elevation: 3,
+    elevation: 4,
   },
   phaseText: {
     color: 'white',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: 'bold',
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   shadowGradient: {
-    height: 8,
+    height: 6,
     position: 'absolute',
-    bottom: -8,
+    bottom: -6,
     left: 0,
     right: 0,
   },

@@ -1,4 +1,4 @@
-// hooks/useAdaptiveTheme.ts - VERSÃO ATUALIZADA
+// hooks/useAdaptiveTheme.ts - TEMA PADRÃO DARK
 import { useState, useEffect } from 'react';
 import moment from 'moment';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -40,7 +40,8 @@ interface AdaptiveTheme {
 }
 
 export const useAdaptiveTheme = () => {
-  const [mode, setMode] = useState<ThemeMode>('light');
+  // MUDANÇA PRINCIPAL: tema padrão agora é 'dark'
+  const [mode, setMode] = useState<ThemeMode>('dark');
   const [currentTheme, setCurrentTheme] = useState<AdaptiveTheme | null>(null);
 
   // Calcula a fase atual do ciclo com melhor precisão
@@ -174,21 +175,27 @@ export const useAdaptiveTheme = () => {
     setCurrentTheme(theme);
   };
 
-  // Carrega configurações salvas
+  // Carrega configurações salvas ou define dark como padrão
   const loadSavedMode = async () => {
     try {
       const savedMode = await AsyncStorage.getItem('themeMode');
       if (savedMode && (savedMode === 'light' || savedMode === 'dark')) {
         setMode(savedMode);
+      } else {
+        // Se não há modo salvo, define dark como padrão e salva
+        setMode('dark');
+        await AsyncStorage.setItem('themeMode', 'dark');
       }
     } catch (error) {
       console.error('Erro ao carregar modo do tema:', error);
+      // Em caso de erro, mantém dark como padrão
+      setMode('dark');
     }
   };
 
   // Funções utilitárias expostas
   const getContrastColor = (backgroundColor: string): string => {
-    if (!currentTheme) return '#000000';
+    if (!currentTheme) return '#FFFFFF'; // Retorna branco para dark mode por padrão
     return currentTheme.utils.getTextColor(backgroundColor, mode);
   };
 
@@ -198,7 +205,10 @@ export const useAdaptiveTheme = () => {
   };
 
   const generateGradient = (baseColor?: string, intensity?: number): string[] => {
-    if (!currentTheme) return ['#FF6B9D', '#FFB4D6'];
+    if (!currentTheme) {
+      // Gradientes padrão para dark mode
+      return ['#8B5CF6', '#7C3AED'];
+    }
     
     if (baseColor) {
       return currentTheme.utils.generateGradient(baseColor, intensity);
@@ -221,11 +231,11 @@ export const useAdaptiveTheme = () => {
     updateTheme();
   }, [mode]);
 
-  // Auto-update do tema baseado no tempo (opcional)
+  // Auto-update do tema baseado no tempo (opcional, a cada 6 horas para performance)
   useEffect(() => {
     const interval = setInterval(() => {
       updateTheme();
-    }, 60000 * 60); // Atualiza a cada hora
+    }, 60000 * 60 * 6); // Atualiza a cada 6 horas
 
     return () => clearInterval(interval);
   }, [mode]);

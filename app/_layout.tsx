@@ -1,4 +1,4 @@
-// app/_layout.tsx - VERSÃO ATUALIZADA
+// app/_layout.tsx - VERSÃO ATUALIZADA COM TEMA DARK
 import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { Stack, useSegments } from 'expo-router';
@@ -19,7 +19,7 @@ export default function RootLayout() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [appReady, setAppReady] = useState(false);
   const segments = useSegments();
-  const { theme } = useAdaptiveTheme();
+  const { theme, isDarkMode } = useAdaptiveTheme();
 
   // Determina a tela atual baseada nos segments
   const getCurrentScreen = () => {
@@ -93,7 +93,9 @@ export default function RootLayout() {
     <GestureHandlerRootView style={styles.container}>
       <View style={[
         styles.appContainer, 
-        { backgroundColor: theme?.colors.background || '#FFFFFF' }
+        { 
+          backgroundColor: theme?.colors.background || (isDarkMode ? '#0A0A0F' : '#FFFFFF')
+        }
       ]}>
         
         {/* Header Global (apenas em telas específicas) */}
@@ -113,6 +115,10 @@ export default function RootLayout() {
               animation: 'slide_from_right',
               gestureEnabled: true,
               animationDuration: 300,
+              // Configurações específicas para tema dark
+              contentStyle: {
+                backgroundColor: theme?.colors.background || (isDarkMode ? '#0A0A0F' : '#FFFFFF'),
+              },
             }}
           >
             <Stack.Screen 
@@ -181,10 +187,10 @@ export default function RootLayout() {
           />
         )}
 
-        {/* Status Bar */}
+        {/* Status Bar configurado para tema dark */}
         <StatusBar 
-          style={theme?.mode === 'dark' ? 'light' : 'dark'} 
-          backgroundColor={theme?.colors.background}
+          style={isDarkMode ? 'light' : 'dark'} 
+          backgroundColor={theme?.colors.background || (isDarkMode ? '#0A0A0F' : '#FFFFFF')}
         />
       </View>
     </GestureHandlerRootView>
