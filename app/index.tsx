@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ParticleSystem } from '../components/ParticleSystem';
+import { Image } from 'expo-image';
 import React from 'react';
 
 export default function IndexScreen() {
@@ -117,21 +118,18 @@ export default function IndexScreen() {
         >
           {/* Logo/Ícone principal */}
           <View style={styles.logoContainer}>
-            <Animated.Text 
-              style={[
-                styles.logo,
-                {
-                  transform: [{ scale: pulseAnim }],
-                }
-              ]}
-            >
-              🌸
-            </Animated.Text>
+            <Animated.View style={[{ transform: [{ scale: pulseAnim }] }]}>
+              <Image
+                source={require('../assets/images/logoTwo.png')}
+                style={styles.logo}
+                contentFit="contain"
+              />
+            </Animated.View>
           </View>
 
           {/* Nome do app */}
           <Animated.Text style={styles.appName}>
-            EntrePhases
+            Entre Fases
           </Animated.Text>
 
           {/* Subtítulo */}
@@ -175,10 +173,8 @@ const styles = StyleSheet.create({
     marginBottom: 30,
   },
   logo: {
-    fontSize: 80,
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
+    width: 120,
+    height: 120,
   },
   appName: {
     fontSize: 32,

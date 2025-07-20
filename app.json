@@ -1,13 +1,17 @@
 {
   "expo": {
-    "name": "EntreFases",
+    "name": "Entre Fases",
     "slug": "EntreFases",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/logoTwo.png",
     "scheme": "EntreFases",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/images/logoTwo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
     "ios": {
       "supportsTablet": true
     },
@@ -16,28 +20,22 @@
         "foregroundImage": "./assets/images/logoTwo.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "package": "com.camillox2.EntreFases"
     },
     "web": {
-      "bundler": "metro",
-      "output": "static",
       "favicon": "./assets/images/logoTwo.png"
     },
     "plugins": [
-      "expo-router",
-      [
-        "expo-splash-screen",
-        {
-          "image": "./assets/images/logoTwo.png",
-          "imageWidth": 200,
-          "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
-        }
-      ],
-      "expo-font"
+      "expo-router"
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+       
+      }
     }
   }
 }
