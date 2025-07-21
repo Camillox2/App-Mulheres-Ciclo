@@ -118,14 +118,14 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
 
   const getScreenTitle = () => {
     const titles: Record<string, string> = {
-      home: 'Entre Fases',
+      home: 'EntrePhases',
       calendar: 'Calendário',
       records: 'Registros',
       analytics: 'Estatísticas',
       settings: 'Configurações',
     };
     const key = currentScreen.toLowerCase();
-    return titles[key] ?? 'Entre Fases';
+    return titles[key] ?? 'EntrePhases';
   };
 
   const getPhaseInitial = () => {

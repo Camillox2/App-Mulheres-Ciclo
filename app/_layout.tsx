@@ -1,198 +1,147 @@
-// app/_layout.tsx - VERSÃO ATUALIZADA COM TEMA DARK
-import { useEffect, useState } from 'react';
-import { StatusBar } from 'expo-status-bar';
+// app/_layout.tsx
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, StyleSheet, useWindowDimensions, Pressable, StatusBar } from 'react-native';
 import { Stack, useSegments } from 'expo-router';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { View, StyleSheet } from 'react-native';
+import { GestureHandlerRootView, PanGestureHandler } from 'react-native-gesture-handler';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  runOnJS,
+  interpolate,
+  Extrapolate,
+} from 'react-native-reanimated';
 import * as SplashScreen from 'expo-splash-screen';
-import * as Font from 'expo-font';
-import { setupNotificationListeners, requestNotificationPermissions } from '../hooks/notifications';
+
 import { GlobalHeader } from '../components/GlobalHeader';
 import { SidebarDrawer } from '../components/Sidebar';
 import { useAdaptiveTheme } from '../hooks/useAdaptiveTheme';
-import React from 'react';
 
-// Previne a tela de splash de esconder automaticamente
 SplashScreen.preventAutoHideAsync();
 
+const DRAWER_WIDTH_PERCENT = 0.80;
+
 export default function RootLayout() {
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [appReady, setAppReady] = useState(false);
   const segments = useSegments();
   const { theme, isDarkMode } = useAdaptiveTheme();
+  const dimensions = useWindowDimensions();
+  const DRAWER_WIDTH = dimensions.width * DRAWER_WIDTH_PERCENT;
 
-  // Determina a tela atual baseada nos segments
-  const getCurrentScreen = () => {
-    const screen = segments[segments.length - 1] || 'index';
-    return screen;
+  const translateX = useSharedValue(-DRAWER_WIDTH);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
+  useEffect(() => {
+    async function prepare() {
+      try {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      } catch (e) {
+        console.warn(e);
+      } finally {
+        setAppReady(true);
+        await SplashScreen.hideAsync();
+      }
+    }
+    prepare();
+  }, []);
+
+  const setDrawerState = useCallback((isOpen: boolean) => {
+    setIsDrawerOpen(isOpen);
+  }, []);
+
+  const openDrawer = useCallback(() => {
+    translateX.value = withTiming(0, { duration: 300 });
+    runOnJS(setDrawerState)(true);
+  }, [translateX]);
+
+  const closeDrawer = useCallback((callback?: () => void) => {
+    translateX.value = withTiming(-DRAWER_WIDTH, { duration: 300 }, (isFinished) => {
+      if (isFinished) {
+        runOnJS(setDrawerState)(false);
+        if (callback) {
+          runOnJS(callback)();
+        }
+      }
+    });
+  }, [translateX, DRAWER_WIDTH]);
+
+  const gestureHandler = (event: any) => {
+    'worklet';
+    const currentPos = translateX.value;
+    const newX = currentPos + event.translationX;
+    translateX.value = Math.max(-DRAWER_WIDTH, Math.min(0, newX));
+
+    if (event.state === 5) {
+      if (event.velocityX > 500 || translateX.value > -DRAWER_WIDTH / 2) {
+        translateX.value = withTiming(0);
+        runOnJS(setDrawerState)(true);
+      } else {
+        translateX.value = withTiming(-DRAWER_WIDTH);
+        runOnJS(setDrawerState)(false);
+      }
+    }
   };
 
-  // Telas que não devem mostrar o header/drawer
+  const animatedSidebarStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+  }));
+
+  const animatedOverlayStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(translateX.value, [-DRAWER_WIDTH, 0], [0, 1], Extrapolate.CLAMP),
+    zIndex: isDrawerOpen ? 100 : -1,
+  }));
+
   const screensWithoutHeader = ['index', 'welcome', 'profile-setup', 'cycle-setup'];
-  const currentScreen = getCurrentScreen();
+  const currentScreen = segments[segments.length - 1] || 'index';
   const shouldShowHeader = !screensWithoutHeader.includes(currentScreen);
 
   useEffect(() => {
-    const loadResources = async () => {
-      try {
-        // Carrega fontes personalizadas (opcional)
-        // await Font.loadAsync({
-        //   'Poppins-Regular': require('../assets/fonts/Poppins-Regular.ttf'),
-        // });
-
-        // Configura sistema de notificações
-        const hasPermission = await requestNotificationPermissions();
-        if (hasPermission) {
-          console.log('Permissões de notificação concedidas');
-        } else {
-          console.log('Permissões de notificação negadas');
-        }
-
-        // Configura listeners de notificação
-        const notificationListeners = setupNotificationListeners();
-
-        // Aguarda um pouco para garantir que tudo carregou
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        
-        setAppReady(true);
-        
-        // Cleanup function retornada pelo useEffect
-        return () => {
-          notificationListeners.remove();
-        };
-        
-      } catch (error) {
-        console.warn('Erro ao carregar recursos:', error);
-        setAppReady(true); // Continua mesmo com erro
-      } finally {
-        await SplashScreen.hideAsync();
-      }
-    };
-
-    loadResources();
-  }, []);
-
-  // Fecha o drawer quando muda de tela
-  useEffect(() => {
-    setIsDrawerOpen(false);
+    if (isDrawerOpen) {
+      closeDrawer();
+    }
   }, [currentScreen]);
 
-  const handleMenuPress = () => {
-    setIsDrawerOpen(!isDrawerOpen);
-  };
-
-  const handleDrawerClose = () => {
-    setIsDrawerOpen(false);
-  };
-
-  if (!appReady) {
-    return null; // Ou um loading screen customizado
+  if (!appReady || !theme) {
+    return null;
   }
 
   return (
-    <GestureHandlerRootView style={styles.container}>
-      <View style={[
-        styles.appContainer, 
-        { 
-          backgroundColor: theme?.colors.background || (isDarkMode ? '#0A0A0F' : '#FFFFFF')
-        }
-      ]}>
-        
-        {/* Header Global (apenas em telas específicas) */}
-        {shouldShowHeader && (
-          <GlobalHeader
-            onMenuPress={handleMenuPress}
-            isMenuOpen={isDrawerOpen}
-            currentScreen={currentScreen}
-          />
-        )}
-
-        {/* Stack Navigator */}
-        <View style={styles.stackContainer}>
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              animation: 'slide_from_right',
-              gestureEnabled: true,
-              animationDuration: 300,
-              // Configurações específicas para tema dark
-              contentStyle: {
-                backgroundColor: theme?.colors.background || (isDarkMode ? '#0A0A0F' : '#FFFFFF'),
-              },
-            }}
-          >
-            <Stack.Screen 
-              name="index" 
-              options={{
-                animation: 'fade',
-              }}
+    <GestureHandlerRootView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+      <SidebarDrawer
+        animatedStyle={animatedSidebarStyle}
+        onClose={closeDrawer}
+        currentScreen={currentScreen}
+      />
+      
+      <PanGestureHandler
+        onGestureEvent={gestureHandler}
+        activeOffsetX={[-10, 40]}
+        failOffsetY={[-15, 15]}
+        enabled={shouldShowHeader}
+      >
+        <Animated.View style={styles.contentContainer}>
+          {shouldShowHeader && (
+            <GlobalHeader
+              onMenuPress={isDrawerOpen ? closeDrawer : openDrawer}
+              isMenuOpen={isDrawerOpen}
+              currentScreen={currentScreen}
             />
-            <Stack.Screen 
-              name="welcome" 
-              options={{
-                animation: 'slide_from_bottom',
-              }}
-            />
-            <Stack.Screen 
-              name="profile-setup" 
-              options={{
-                animation: 'slide_from_right',
-              }}
-            />
-            <Stack.Screen 
-              name="cycle-setup" 
-              options={{
-                animation: 'slide_from_right',
-              }}
-            />
-            <Stack.Screen 
-              name="home" 
-              options={{
-                animation: 'fade',
-              }}
-            />
-            <Stack.Screen 
-              name="calendar" 
-              options={{
-                animation: 'slide_from_right',
-              }}
-            />
-            <Stack.Screen 
-              name="records" 
-              options={{
-                animation: 'slide_from_right',
-              }}
-            />
-            <Stack.Screen 
-              name="analytics" 
-              options={{
-                animation: 'slide_from_right',
-              }}
-            />
-            <Stack.Screen 
-              name="settings" 
-              options={{
-                animation: 'slide_from_right',
-              }}
-            />
-          </Stack>
-        </View>
-
-        {/* Sidebar Drawer (apenas em telas específicas) */}
-        {shouldShowHeader && (
-          <SidebarDrawer
-            isOpen={isDrawerOpen}
-            onClose={handleDrawerClose}
-            currentScreen={currentScreen}
-          />
-        )}
-
-        {/* Status Bar configurado para tema dark */}
-        <StatusBar 
-          style={isDarkMode ? 'light' : 'dark'} 
-          backgroundColor={theme?.colors.background || (isDarkMode ? '#0A0A0F' : '#FFFFFF')}
-        />
-      </View>
+          )}
+          <View style={styles.stackContainer}>
+            <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
+              <Stack.Screen name="index" options={{ animation: 'fade' }} />
+              <Stack.Screen name="welcome" options={{ animation: 'slide_from_bottom' }} />
+            </Stack>
+          </View>
+        </Animated.View>
+      </PanGestureHandler>
+      
+      {isDrawerOpen && (
+        <Animated.View style={[styles.overlay, animatedOverlayStyle]}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => closeDrawer()} />
+        </Animated.View>
+      )}
     </GestureHandlerRootView>
   );
 }
@@ -201,10 +150,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  appContainer: {
+  contentContainer: {
     flex: 1,
   },
   stackContainer: {
     flex: 1,
+  },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.5)',
   },
 });
