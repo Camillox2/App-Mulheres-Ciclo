@@ -53,7 +53,7 @@ const NOTIFICATION_CONFIG = {
     body: () => 'Sua menstruação está atrasada. Considere fazer um teste ou consultar um médico se necessário.',
   },
   dailyReminder: {
-    title: '💜 EntrePhases',
+    title: '💜 Entre Fases',
     body: () => 'Como você está se sentindo hoje? Que tal registrar seus sintomas?',
   },
 };
@@ -285,7 +285,7 @@ export const sendTestNotification = async (): Promise<void> => {
     await Notifications.scheduleNotificationAsync({
       content: {
         title: '🧪 Notificação de Teste',
-        body: 'Esta é uma notificação de teste do EntrePhases!',
+        body: 'Esta é uma notificação de teste do Entre Fases!',
         data: { type: 'test' },
       },
       trigger: null, 

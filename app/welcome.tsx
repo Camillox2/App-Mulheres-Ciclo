@@ -1,172 +1,281 @@
-// app/welcome.tsx
-import { useState, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  TouchableOpacity, 
-  Animated, 
+import React, { useState, useRef, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Animated,
   Dimensions,
-  SafeAreaView 
+  SafeAreaView,
+  FlatList,
+  ViewToken,
+  Image,
 } from 'react-native';
+import logoTwo from '../assets/images/logoFour.png';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import React from 'react';
+import { ParticleSystem } from '../components/ParticleSystem';
+import * as Haptics from 'expo-haptics';
+import { Ionicons } from '@expo/vector-icons';
 
 const { width, height } = Dimensions.get('window');
 
+import { ColorValue } from 'react-native';
+
+const slides: {
+  key: string;
+  image: any; // Use 'any' for image source
+  title: string;
+  subtitle: string;
+  description: string;
+  colors: readonly [ColorValue, ColorValue, ...ColorValue[]];
+}[] = [
+  {
+    key: '1',
+    image: logoTwo,
+    title: 'Bem-vinda ao Entre Fases',
+    subtitle: 'Seu guia inteligente para o ciclo menstrual.',
+    description: 'Aqui começa uma jornada de autoconhecimento. Entenda seus ritmos, abrace suas fases e floresça em cada uma delas.',
+    colors: ['#E55D87', '#5FC3E4'] as const,
+  },
+  {
+    key: '2',
+    image: logoTwo,
+    title: 'Cores que se Adaptam',
+    subtitle: 'Uma interface que reflete seu estado interior.',
+    description: 'Nossa paleta de cores se transforma com você, criando uma experiência visual que espelha sua energia e humor a cada fase do ciclo.',
+    colors: ['#5FC3E4', '#f5af19'] as const,
+  },
+  {
+  key: '3',
+    image: logoTwo,
+    title: 'Previsões e Insights',
+    subtitle: 'Saiba o que esperar de cada dia.',
+    description: 'Receba previsões precisas sobre sua menstruação, período fértil e ovulação, além de dicas personalizadas para seu bem-estar.',
+    colors: ['#f5af19', '#f12711'] as const,
+  },
+  {
+    key: '4',
+    image: logoTwo,
+    title: 'Sua Jornada, Sua Privacidade',
+    subtitle: 'Seus dados são seus, e de mais ninguém.',
+    description: 'Levamos sua privacidade a sério. Todos os seus registros são armazenados de forma segura apenas no seu dispositivo, garantindo total confidencialidade.',
+    colors: ['#f12711', '#8E44AD'] as const,
+  },
+  {
+    key: '5',
+    image: logoTwo,
+    title: 'Feito com Amor',
+    subtitle: 'Um presente para sua jornada.',
+    description: 'O Entre Fases foi criado com carinho para ser seu companheiro diário, apoiando seu bem-estar e celebrando a beleza de ser mulher.',
+    colors: ['#8E44AD', '#E55D87'] as const,
+  },
+];
+
+const AnimatedLinearGradient = Animated.createAnimatedComponent(LinearGradient);
+
+const OnboardingSlide = ({ item, scrollX, index }: { item: typeof slides[0], scrollX: Animated.Value, index: number }) => {
+  const inputRange = [(index - 1) * width, index * width, (index + 1) * width];
+
+  const contentOpacity = scrollX.interpolate({
+    inputRange,
+    outputRange: [0.2, 1, 0.2],
+    extrapolate: 'clamp',
+  });
+
+  const contentScale = scrollX.interpolate({
+    inputRange,
+    outputRange: [0.9, 1, 0.9],
+    extrapolate: 'clamp',
+  });
+
+  const emojiTranslateX = scrollX.interpolate({
+    inputRange,
+    outputRange: [width * 0.5, 0, -width * 0.5],
+    extrapolate: 'clamp',
+  });
+
+  const textTranslateX = scrollX.interpolate({
+    inputRange,
+    outputRange: [width * 0.8, 0, -width * 0.8],
+    extrapolate: 'clamp',
+  });
+
+  return (
+    <Animated.View style={[styles.slideContent, { transform: [{ scale: contentScale }] }]}> 
+      <Animated.View style={[styles.emoji, { opacity: contentOpacity, transform: [{ translateX: emojiTranslateX }] }]}> 
+        <Image source={item.image} style={{ width: 200, height: 200, resizeMode: 'contain' }} />
+      </Animated.View>
+      <Animated.View style={{ opacity: contentOpacity, transform: [{ translateX: textTranslateX }] }}>
+        <Text style={styles.title}>{item.title}</Text>
+        <Text style={styles.subtitle}>{item.subtitle}</Text>
+        <Text style={styles.description}>{item.description}</Text>
+      </Animated.View>
+    </Animated.View>
+  );
+};
+
+const Background = ({ scrollX }: { scrollX: Animated.Value }) => {
+  return (
+    <View style={[StyleSheet.absoluteFillObject]}>
+      {slides.map((slide, index) => {
+        const inputRange = [(index - 1) * width, index * width, (index + 1) * width];
+        const opacity = scrollX.interpolate({
+          inputRange,
+          outputRange: [0, 1, 0],
+          extrapolate: 'clamp',
+        });
+        return (
+          <Animated.View key={slide.key} style={[StyleSheet.absoluteFillObject, { opacity }]}>
+            <LinearGradient
+              colors={slide.colors}
+              style={styles.gradient}
+              start={{ x: 0.1, y: 0.1 }}
+              end={{ x: 0.9, y: 0.9 }}
+            />
+          </Animated.View>
+        );
+      })}
+    </View>
+  );
+};
+
+const Footer = ({ scrollX, onNextPress, onSkipPress, currentIndex }: { scrollX: Animated.Value, onNextPress: () => void, onSkipPress: () => void, currentIndex: number }) => {
+  const isLastSlide = currentIndex === slides.length - 1;
+
+  const buttonScale = useRef(new Animated.Value(1)).current;
+
+  const onPressIn = () => {
+    Animated.spring(buttonScale, { toValue: 0.95, useNativeDriver: true }).start();
+  };
+  const onPressOut = () => {
+    Animated.spring(buttonScale, { toValue: 1, useNativeDriver: true }).start();
+  };
+
+  return (
+    <View style={styles.footer}>
+      <View style={styles.progressContainer}>
+        {slides.map((_, index) => {
+          const inputRange = [(index - 1) * width, index * width, (index + 1) * width];
+          const scale = scrollX.interpolate({
+            inputRange,
+            outputRange: [1, 1.6, 1],
+            extrapolate: 'clamp',
+          });
+          const opacity = scrollX.interpolate({
+            inputRange,
+            outputRange: [0.5, 1, 0.5],
+            extrapolate: 'clamp',
+          });
+
+          return (
+            <Animated.View
+              key={index}
+              style={[
+                styles.progressDot,
+                { transform: [{ scale }], opacity }
+              ]}
+            />
+          );
+        })}
+      </View>
+
+      <TouchableOpacity
+        style={styles.nextButtonContainer}
+        onPress={onNextPress}
+        activeOpacity={0.9}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+      >
+        <Animated.View style={[styles.nextButton, { transform: [{ scale: buttonScale }] }]}>
+          <Text style={styles.nextButtonText}>
+            {isLastSlide ? 'Começar Jornada' : 'Próximo'}
+          </Text>
+          <Ionicons
+            name={isLastSlide ? "sparkles-outline" : "arrow-forward-outline"}
+            size={22}
+            color="#E55D87"
+            style={{ marginLeft: 8 }}
+          />
+        </Animated.View>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.skipButton} onPress={onSkipPress}>
+        <Text style={styles.skipButtonText}>
+          {isLastSlide ? ' ' : 'Pular introdução'}
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+};
+
 export default function WelcomeScreen() {
-  const [currentSlide, setCurrentSlide] = useState(0);
-  const slideAnim = useState(new Animated.Value(0))[0];
-  const fadeAnim = useState(new Animated.Value(0))[0];
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const scrollX = useRef(new Animated.Value(0)).current;
+  const flatListRef = useRef<FlatList>(null);
 
-  const slides = [
-    {
-      emoji: '🌸',
-      title: 'Bem-vinda ao EntrePhases',
-      subtitle: 'Seu companheiro inteligente para acompanhar seu ciclo menstrual',
-      description: 'Descubra uma nova forma de se conectar com seu corpo e entender seus ritmos naturais.'
-    },
-    {
-      emoji: '🎨',
-      title: 'Cores que se Adaptam',
-      subtitle: 'Interface que muda com suas fases',
-      description: 'Nosso app se transforma visualmente conforme seu ciclo, criando uma experiência única e pessoal.'
-    },
-    {
-      emoji: '📅',
-      title: 'Previsões Inteligentes',
-      subtitle: 'Saiba o que esperar de cada dia',
-      description: 'Receba insights sobre fertilidade, sintomas e mudanças de humor baseados no seu histórico.'
-    },
-    {
-      emoji: '💝',
-      title: 'Feito com Amor',
-      subtitle: 'Criado especialmente para você',
-      description: 'Um presente especial, desenvolvido com carinho para acompanhar sua jornada de autoconhecimento.'
+  const handleGetStarted = async () => {
+    try {
+      await AsyncStorage.setItem('isFirstTime', 'false');
+      router.replace('/profile-setup');
+    } catch (error) {
+      console.error('Erro ao salvar primeiro acesso:', error);
+      router.replace('/profile-setup');
     }
-  ];
+  };
 
-  useEffect(() => {
-    // Animação de entrada
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 1000,
-      useNativeDriver: true,
-    }).start();
-  }, []);
+  const onViewableItemsChanged = useCallback(({ viewableItems }: { viewableItems: ViewToken[] }) => {
+    if (viewableItems.length > 0) {
+      const newIndex = viewableItems[0].index ?? 0;
+      if (newIndex !== currentIndex) {
+        setCurrentIndex(newIndex);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+    }
+  }, [currentIndex]);
 
-  useEffect(() => {
-    // Animação ao trocar de slide
-    Animated.timing(slideAnim, {
-      toValue: currentSlide,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
-  }, [currentSlide]);
+  const viewabilityConfig = useRef({
+    itemVisiblePercentThreshold: 50,
+  }).current;
 
-  const nextSlide = () => {
-    if (currentSlide < slides.length - 1) {
-      setCurrentSlide(currentSlide + 1);
+  const handleNext = () => {
+    if (currentIndex < slides.length - 1) {
+      flatListRef.current?.scrollToIndex({ index: currentIndex + 1 });
     } else {
       handleGetStarted();
     }
   };
 
-  const handleGetStarted = async () => {
-    try {
-      // Marca que não é mais a primeira vez
-      await AsyncStorage.setItem('isFirstTime', 'false');
-      router.push('/profile-setup');
-    } catch (error) {
-      console.error('Erro ao salvar primeiro acesso:', error);
-      router.push('/profile-setup');
-    }
-  };
-
-  const currentSlideData = slides[currentSlide];
-
   return (
     <SafeAreaView style={styles.container}>
-      <LinearGradient
-        colors={['#FF6B9D', '#FFB4D6', '#FF6B9D']}
-        style={styles.gradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <Animated.View 
-          style={[
-            styles.content,
-            { opacity: fadeAnim }
-          ]}
-        >
-          {/* Indicadores de progresso */}
-          <View style={styles.progressContainer}>
-            {slides.map((_, index) => (
-              <View
-                key={index}
-                style={[
-                  styles.progressDot,
-                  { 
-                    backgroundColor: index <= currentSlide ? 'white' : 'rgba(255,255,255,0.3)',
-                    transform: [{ scale: index === currentSlide ? 1.2 : 1 }]
-                  }
-                ]}
-              />
-            ))}
-          </View>
+      <Background scrollX={scrollX} />
+      <ParticleSystem particleColor="rgba(255, 255, 255, 0.4)" count={12} enabled />
 
-          {/* Conteúdo do slide atual */}
-          <View style={styles.slideContent}>
-            <Text style={styles.emoji}>{currentSlideData.emoji}</Text>
-            
-            <Text style={styles.title}>{currentSlideData.title}</Text>
-            
-            <Text style={styles.subtitle}>{currentSlideData.subtitle}</Text>
-            
-            <Text style={styles.description}>{currentSlideData.description}</Text>
-          </View>
+      <FlatList
+        ref={flatListRef}
+        data={slides}
+        renderItem={({ item, index }) => <OnboardingSlide item={item} scrollX={scrollX} index={index} />}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+          { useNativeDriver: false }
+        )}
+        onViewableItemsChanged={onViewableItemsChanged}
+        viewabilityConfig={viewabilityConfig}
+        keyExtractor={(item) => item.key}
+        scrollEventThrottle={16}
+        decelerationRate="fast"
+      />
 
-          {/* Botões de navegação */}
-          <View style={styles.buttonContainer}>
-            {currentSlide > 0 && (
-              <TouchableOpacity
-                style={styles.backButton}
-                onPress={() => setCurrentSlide(currentSlide - 1)}
-              >
-                <Text style={styles.backButtonText}>Voltar</Text>
-              </TouchableOpacity>
-            )}
-
-            <TouchableOpacity
-              style={styles.nextButton}
-              onPress={nextSlide}
-            >
-              <Text style={styles.nextButtonText}>
-                {currentSlide === slides.length - 1 ? 'Começar' : 'Próximo'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Skip para quem quer pular */}
-          {currentSlide < slides.length - 1 && (
-            <TouchableOpacity
-              style={styles.skipButton}
-              onPress={handleGetStarted}
-            >
-              <Text style={styles.skipButtonText}>Pular introdução</Text>
-            </TouchableOpacity>
-          )}
-        </Animated.View>
-
-        {/* Decoração de fundo */}
-        <View style={styles.backgroundDecoration}>
-          <View style={styles.circle1} />
-          <View style={styles.circle2} />
-          <View style={styles.circle3} />
-        </View>
-      </LinearGradient>
+      <Footer
+        scrollX={scrollX}
+        onNextPress={handleNext}
+        onSkipPress={handleGetStarted}
+        currentIndex={currentIndex}
+      />
     </SafeAreaView>
   );
 }
@@ -174,134 +283,118 @@ export default function WelcomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#E55D87',
   },
   gradient: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
   },
   content: {
     flex: 1,
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 30,
-    paddingVertical: 50,
-    zIndex: 10,
-  },
-  progressContainer: {
-    flexDirection: 'row',
-    marginTop: 20,
-  },
-  progressDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginHorizontal: 4,
   },
   slideContent: {
+    width: width,
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: 25,
+  },
+  logo: {
+    width: 150,
+    height: 150,
+    marginBottom: 40,
   },
   emoji: {
-    fontSize: 100,
-    marginBottom: 30,
+    width: 160,
+    height: 160,
+    borderRadius: 90,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 40,
+    shadowColor: 'rgba(0,0,0,0.15)',
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 12,
+    shadowOpacity: 1,
+    bottom: 40,
   },
   title: {
-    fontSize: 28,
+    fontSize: 30,
     fontWeight: 'bold',
     color: 'white',
     textAlign: 'center',
-    marginBottom: 15,
+    marginBottom: 16,
+    fontFamily: 'System',
+        bottom: 40,
   },
   subtitle: {
     fontSize: 18,
-    color: 'white',
+    color: 'rgba(255, 255, 255, 0.95)',
     textAlign: 'center',
-    marginBottom: 20,
-    opacity: 0.9,
+    marginBottom: 24,
+    fontWeight: '500',
+        bottom: 40,
   },
   description: {
     fontSize: 16,
-    color: 'white',
+    color: 'rgba(255, 255, 255, 0.85)',
     textAlign: 'center',
-    lineHeight: 24,
-    opacity: 0.8,
+    lineHeight: 26,
+        bottom: 40,
   },
-  buttonContainer: {
-    flexDirection: 'row',
-    width: '100%',
-    justifyContent: 'space-between',
+  footer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 20,
+    paddingBottom: 40,
     alignItems: 'center',
-    paddingHorizontal: 20,
+    
   },
-  backButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 20,
+  progressContainer: {
+    flexDirection: 'row',
+    height: 16,
+    marginBottom: 30,
+    justifyContent: 'center',
   },
-  backButtonText: {
-    color: 'white',
-    fontSize: 16,
-    opacity: 0.8,
+  progressDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginHorizontal: 8,
+    backgroundColor: 'white',
+    bottom: -5,
+  },
+  nextButtonContainer: {
+    borderRadius: 30,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
   nextButton: {
     backgroundColor: 'white',
-    borderRadius: 25,
-    paddingVertical: 15,
+    borderRadius: 30,
+    paddingVertical: 18,
     paddingHorizontal: 40,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
+    minWidth: '60%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
   },
   nextButtonText: {
-    color: '#FF6B9D',
-    fontSize: 16,
+    color: '#E55D87',
+    fontSize: 18,
     fontWeight: 'bold',
   },
   skipButton: {
-    marginTop: 15,
-    paddingVertical: 10,
+    marginTop: 20,
+    height: 30,
+    justifyContent: 'center',
   },
   skipButtonText: {
-    color: 'white',
+    color: 'rgba(255, 255, 255, 0.7)',
     fontSize: 14,
-    opacity: 0.7,
-    textDecorationLine: 'underline',
-  },
-  backgroundDecoration: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 1,
-  },
-  circle1: {
-    position: 'absolute',
-    top: 100,
-    right: -50,
-    width: 150,
-    height: 150,
-    borderRadius: 75,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  circle2: {
-    position: 'absolute',
-    bottom: 200,
-    left: -80,
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  circle3: {
-    position: 'absolute',
-    top: 300,
-    left: width * 0.7,
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
   },
 });

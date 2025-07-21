@@ -616,7 +616,7 @@ export default function AnalyticsScreen() {
     if (!analytics) return;
 
     const report = `
-📊 Meu Relatório EntrePhases (${filterPeriod})
+📊 Meu Relatório Entre Fases (${filterPeriod})
 
 🔢 Estatísticas:
 • ${analytics.totalRecords} registros totais
@@ -628,13 +628,13 @@ export default function AnalyticsScreen() {
 
 🌸 Próxima menstruação (previsão): ${analytics.nextPeriodPrediction || 'Calculando...'}
 
-Gerado pelo app EntrePhases
+Gerado pelo app Entre Fases
     `.trim();
 
     try {
       await Share.share({
         message: report,
-        title: 'Meu Relatório de Ciclo EntrePhases',
+        title: 'Meu Relatório de Ciclo Entre Fases',
       });
     } catch (error) {
       console.error('Erro ao compartilhar:', error);

@@ -518,7 +518,7 @@ export default function SettingsScreen() {
       ℹ️ Sobre
      </Text>
      <Text style={[styles.aboutText, { color: theme.colors.secondary }]}>
-      EntrePhases v1.0.0{'\n'}
+      Entre Fases v1.0.0{'\n'}
       Seu companheiro inteligente para acompanhar o ciclo menstrual{'\n\n'}
       Feito com 💜 especialmente para você
      </Text>

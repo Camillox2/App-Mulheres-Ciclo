@@ -119,27 +119,27 @@ export const getCurrentPhase = (dayOfCycle: number, cycleData: CycleData): Cycle
  * FUNÇÃO NOVA: Calcula intensidade da fase para gradientes
  */
 export const calculatePhaseIntensity = (dayOfCycle: number, phase: CyclePhase, cycleLength: number): number => {
-  let phaseStart: number, phaseEnd: number, phasePeak: number;
+  let ptart: number, phaseEnd: number, phasePeak: number;
 
   switch (phase) {
     case 'menstrual':
-      phaseStart = 1;
+      ptart = 1;
       phaseEnd = 5;
       phasePeak = 3;
       break;
     case 'postMenstrual':
-      phaseStart = 6;
+      ptart = 6;
       phaseEnd = Math.floor(cycleLength / 2) - 3;
-      phasePeak = Math.floor((phaseStart + phaseEnd) / 2);
+      phasePeak = Math.floor((ptart + phaseEnd) / 2);
       break;
     case 'fertile':
     case 'ovulation':
-      phaseStart = cycleLength - 16;
+      ptart = cycleLength - 16;
       phaseEnd = cycleLength - 12;
       phasePeak = cycleLength - 14;
       break;
     case 'preMenstrual':
-      phaseStart = cycleLength - 11;
+      ptart = cycleLength - 11;
       phaseEnd = cycleLength;
       phasePeak = cycleLength - 5;
       break;
@@ -148,7 +148,7 @@ export const calculatePhaseIntensity = (dayOfCycle: number, phase: CyclePhase, c
   }
 
   const distanceFromPeak = Math.abs(dayOfCycle - phasePeak);
-  const maxDistance = Math.max(phasePeak - phaseStart, phaseEnd - phasePeak);
+  const maxDistance = Math.max(phasePeak - ptart, phaseEnd - phasePeak);
   
   if (maxDistance === 0) return 1;
   
