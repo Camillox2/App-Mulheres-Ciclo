@@ -570,6 +570,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 25,
     width: '100%',
+    
   },
   phaseEmoji: {
     fontSize: 40,
@@ -594,11 +595,13 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0,0,0,0.2)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 1,
+    
   },
   cycleStatsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     width: '100%',
+    
   },
   cycleStat: {
     alignItems: 'center',
@@ -641,6 +644,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+    borderColor: "#A831C05D",
+    borderWidth: 1,
   },
   infoCardContent: {
     alignItems: 'center',

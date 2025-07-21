@@ -1,5 +1,5 @@
-// components/GlobalHeader.tsx - OTIMIZADO PARA TEMA DARK
-import React, { useEffect, useRef } from 'react';
+// components/GlobalHeader.tsx - VERSÃO OTIMIZADA COM BOTÃO RESPONSIVO
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   SafeAreaView,
   Dimensions,
   StatusBar,
+  Pressable,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAdaptiveTheme } from '../hooks/useAdaptiveTheme';
@@ -34,6 +35,7 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
   const menuIconRotation = useRef(new Animated.Value(0)).current;
   const logoScale = useRef(new Animated.Value(1)).current;
   const phaseIndicatorScale = useRef(new Animated.Value(1)).current;
+  const [isButtonPressed, setIsButtonPressed] = useState(false);
 
   // Animação do ícone do menu
   useEffect(() => {
@@ -86,7 +88,7 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     return () => phaseAnimation.stop();
   }, [theme?.phase]);
 
-  // StatusBar sempre chamado - CORRIGIDO
+  // StatusBar
   useEffect(() => {
     if (theme) {
       StatusBar.setBarStyle(isDarkMode ? 'light-content' : 'dark-content', true);
@@ -118,14 +120,14 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
 
   const getScreenTitle = () => {
     const titles: Record<string, string> = {
-      home: 'EntrePhases',
+      home: 'Entre Fases',
       calendar: 'Calendário',
       records: 'Registros',
       analytics: 'Estatísticas',
       settings: 'Configurações',
     };
     const key = currentScreen.toLowerCase();
-    return titles[key] ?? 'EntrePhases';
+    return titles[key] ?? 'Entre Fases';
   };
 
   const getPhaseInitial = () => {
@@ -137,6 +139,13 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
       preMenstrual: 'PM',
     };
     return initials[theme.phase as PhaseType] || 'M';
+  };
+
+  const handleMenuPress = () => {
+    setIsButtonPressed(true);
+    onMenuPress();
+    // Reset estado após um curto delay
+    setTimeout(() => setIsButtonPressed(false), 300);
   };
 
   return (
@@ -169,18 +178,21 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
         </View>
 
         <View style={[styles.headerContent, { paddingTop: insets.top + 10 }]}>
-          {/* Botão Menu / Voltar */}
+          {/* Botão Menu / Voltar - OTIMIZADO */}
           {currentScreen === 'home' ? (
-            <TouchableOpacity
-              style={[
+            <Pressable
+              style={({ pressed }) => [
                 styles.menuButton,
                 { 
-                  backgroundColor: `${theme.colors.primary}20`,
+                  backgroundColor: pressed || isButtonPressed ? 
+                    theme.colors.primary : 
+                    `${theme.colors.primary}20`,
                   borderColor: `${theme.colors.primary}30`,
-                }
+                  transform: [{ scale: pressed ? 0.9 : 1 }],
+                },
               ]}
-              onPress={onMenuPress}
-              activeOpacity={0.7}
+              onPress={handleMenuPress}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
               <Animated.View
                 style={[
@@ -188,25 +200,50 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
                   { transform: [{ rotate: menuIconRotate }] },
                 ]}
               >
-                <View style={[styles.menuLine, { backgroundColor: theme.colors.primary }]} />
-                <View style={[styles.menuLine, { backgroundColor: theme.colors.primary }]} />
-                <View style={[styles.menuLine, { backgroundColor: theme.colors.primary }]} />
+                {isMenuOpen ? (
+                  <Ionicons 
+                    name="close" 
+                    size={22} 
+                    color={isButtonPressed ? 'white' : theme.colors.primary} 
+                  />
+                ) : (
+                  <>
+                    <View style={[styles.menuLine, { 
+                      backgroundColor: isButtonPressed ? 'white' : theme.colors.primary 
+                    }]} />
+                    <View style={[styles.menuLine, { 
+                      backgroundColor: isButtonPressed ? 'white' : theme.colors.primary 
+                    }]} />
+                    <View style={[styles.menuLine, { 
+                      backgroundColor: isButtonPressed ? 'white' : theme.colors.primary 
+                    }]} />
+                  </>
+                )}
               </Animated.View>
-            </TouchableOpacity>
+            </Pressable>
           ) : (
-            <TouchableOpacity
-              style={[
+            <Pressable
+              style={({ pressed }) => [
                 styles.menuButton,
                 { 
-                  backgroundColor: `${theme.colors.primary}20`,
+                  backgroundColor: pressed ? 
+                    theme.colors.primary : 
+                    `${theme.colors.primary}20`,
                   borderColor: `${theme.colors.primary}30`,
+                  transform: [{ scale: pressed ? 0.9 : 1 }],
                 }
               ]}
               onPress={() => router.replace('/home')}
-              activeOpacity={0.7}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <Ionicons name="arrow-back" size={24} color={theme.colors.primary} />
-            </TouchableOpacity>
+              {({ pressed }) => (
+                <Ionicons 
+                  name="arrow-back" 
+                  size={24} 
+                  color={pressed ? 'white' : theme.colors.primary} 
+                />
+              )}
+            </Pressable>
           )}
 
           {/* Logo Central */}
@@ -313,14 +350,16 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   menuIconContainer: {
-    width: 18,
-    height: 14,
-    justifyContent: 'space-between',
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   menuLine: {
     height: 2,
-    width: '100%',
+    width: 18,
     borderRadius: 1,
+    marginVertical: 2,
   },
   logoContainer: {
     flex: 1,

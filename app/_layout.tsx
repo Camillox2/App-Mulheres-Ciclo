@@ -1,15 +1,18 @@
-// app/_layout.tsx
-import React, { useState, useEffect, useCallback } from 'react';
+// app/_layout.tsx - VERSÃO CORRIGIDA COM GESTOS E ANIMAÇÕES FLUIDAS
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, StyleSheet, useWindowDimensions, Pressable, StatusBar } from 'react-native';
 import { Stack, useSegments } from 'expo-router';
-import { GestureHandlerRootView, PanGestureHandler } from 'react-native-gesture-handler';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
+  withSpring,
   runOnJS,
   interpolate,
   Extrapolate,
+  Easing,
 } from 'react-native-reanimated';
 import * as SplashScreen from 'expo-splash-screen';
 
@@ -20,6 +23,8 @@ import { useAdaptiveTheme } from '../hooks/useAdaptiveTheme';
 SplashScreen.preventAutoHideAsync();
 
 const DRAWER_WIDTH_PERCENT = 0.80;
+const SWIPE_THRESHOLD = 10;
+const SWIPE_VELOCITY_THRESHOLD = 800;
 
 export default function RootLayout() {
   const [appReady, setAppReady] = useState(false);
@@ -29,7 +34,9 @@ export default function RootLayout() {
   const DRAWER_WIDTH = dimensions.width * DRAWER_WIDTH_PERCENT;
 
   const translateX = useSharedValue(-DRAWER_WIDTH);
+  const gestureX = useSharedValue(0);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const isAnimatingRef = useRef(false);
 
   useEffect(() => {
     async function prepare() {
@@ -50,12 +57,25 @@ export default function RootLayout() {
   }, []);
 
   const openDrawer = useCallback(() => {
-    translateX.value = withTiming(0, { duration: 300 });
+    'worklet';
+    // Atualiza o estado imediatamente para evitar duplo clique
     runOnJS(setDrawerState)(true);
-  }, [translateX]);
+    translateX.value = withSpring(0, {
+      damping: 20,
+      stiffness: 300,
+      mass: 0.3,
+      velocity: 0,
+    });
+  }, [translateX, setDrawerState]);
 
   const closeDrawer = useCallback((callback?: () => void) => {
-    translateX.value = withTiming(-DRAWER_WIDTH, { duration: 300 }, (isFinished) => {
+    'worklet';
+    translateX.value = withSpring(-DRAWER_WIDTH, {
+      damping: 20,
+      stiffness: 300,
+      mass: 0.3,
+      velocity: 0,
+    }, (isFinished) => {
       if (isFinished) {
         runOnJS(setDrawerState)(false);
         if (callback) {
@@ -63,32 +83,54 @@ export default function RootLayout() {
         }
       }
     });
-  }, [translateX, DRAWER_WIDTH]);
+  }, [translateX, DRAWER_WIDTH, setDrawerState]);
 
-  const gestureHandler = (event: any) => {
-    'worklet';
-    const currentPos = translateX.value;
-    const newX = currentPos + event.translationX;
-    translateX.value = Math.max(-DRAWER_WIDTH, Math.min(0, newX));
-
-    if (event.state === 5) {
-      if (event.velocityX > 500 || translateX.value > -DRAWER_WIDTH / 2) {
-        translateX.value = withTiming(0);
-        runOnJS(setDrawerState)(true);
+  // Gesture para abrir/fechar o drawer
+  const panGesture = Gesture.Pan()
+    .activeOffsetX([-SWIPE_THRESHOLD, SWIPE_THRESHOLD])
+    .failOffsetY([-5, 5])
+    .onStart(() => {
+      gestureX.value = translateX.value;
+    })
+    .onUpdate((event) => {
+      const newX = gestureX.value + event.translationX;
+      translateX.value = Math.max(-DRAWER_WIDTH, Math.min(0, newX));
+    })
+    .onEnd((event) => {
+      const velocity = event.velocityX;
+      const currentPosition = translateX.value;
+      
+      if (velocity > SWIPE_VELOCITY_THRESHOLD || (velocity > -100 && currentPosition > -DRAWER_WIDTH / 2)) {
+        openDrawer();
       } else {
-        translateX.value = withTiming(-DRAWER_WIDTH);
-        runOnJS(setDrawerState)(false);
+        closeDrawer();
       }
-    }
-  };
+    });
 
+  // Animações dos estilos
   const animatedSidebarStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: translateX.value }],
   }));
 
   const animatedOverlayStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(translateX.value, [-DRAWER_WIDTH, 0], [0, 1], Extrapolate.CLAMP),
-    zIndex: isDrawerOpen ? 100 : -1,
+    opacity: interpolate(
+      translateX.value,
+      [-DRAWER_WIDTH, 0],
+      [0, 1],
+      Extrapolate.CLAMP
+    ),
+    pointerEvents: translateX.value > -DRAWER_WIDTH + 10 ? 'auto' : 'none',
+  }));
+
+  const animatedContentStyle = useAnimatedStyle(() => ({
+    transform: [{
+      translateX: interpolate(
+        translateX.value,
+        [-DRAWER_WIDTH, 0],
+        [0, 60],
+        Extrapolate.CLAMP
+      )
+    }],
   }));
 
   const screensWithoutHeader = ['index', 'welcome', 'profile-setup', 'cycle-setup'];
@@ -108,22 +150,41 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+      
+      {/* Sidebar */}
       <SidebarDrawer
         animatedStyle={animatedSidebarStyle}
         onClose={closeDrawer}
         currentScreen={currentScreen}
       />
       
-      <PanGestureHandler
-        onGestureEvent={gestureHandler}
-        activeOffsetX={[-10, 40]}
-        failOffsetY={[-15, 15]}
-        enabled={shouldShowHeader}
-      >
-        <Animated.View style={styles.contentContainer}>
+      {/* Overlay */}
+      <Animated.View style={[styles.overlay, animatedOverlayStyle]} pointerEvents="box-none">
+        <Pressable style={StyleSheet.absoluteFill} onPress={() => closeDrawer()} />
+      </Animated.View>
+      
+      {/* Conteúdo principal com gesture */}
+      <GestureDetector gesture={panGesture}>
+        <Animated.View style={[styles.contentContainer, animatedContentStyle]}>
           {shouldShowHeader && (
             <GlobalHeader
-              onMenuPress={isDrawerOpen ? closeDrawer : openDrawer}
+              onMenuPress={() => {
+                // Previne múltiplos cliques durante animação
+                if (isAnimatingRef.current) return;
+                
+                isAnimatingRef.current = true;
+                
+                if (isDrawerOpen) {
+                  closeDrawer();
+                } else {
+                  openDrawer();
+                }
+                
+                // Reset flag após a animação
+                setTimeout(() => {
+                  isAnimatingRef.current = false;
+                }, 300);
+              }}
               isMenuOpen={isDrawerOpen}
               currentScreen={currentScreen}
             />
@@ -135,13 +196,7 @@ export default function RootLayout() {
             </Stack>
           </View>
         </Animated.View>
-      </PanGestureHandler>
-      
-      {isDrawerOpen && (
-        <Animated.View style={[styles.overlay, animatedOverlayStyle]}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => closeDrawer()} />
-        </Animated.View>
-      )}
+      </GestureDetector>
     </GestureHandlerRootView>
   );
 }
@@ -159,5 +214,6 @@ const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.5)',
+    zIndex: 100,
   },
 });
