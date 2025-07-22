@@ -134,38 +134,47 @@ export default function RootLayout() {
   }));
 
   const screensWithoutHeader = ['index', 'welcome', 'profile-setup', 'cycle-setup'];
+  const screensWithoutSidebar = ['index', 'welcome', 'profile-setup', 'cycle-setup'];
   const currentScreen = segments[segments.length - 1] || 'index';
   const shouldShowHeader = !screensWithoutHeader.includes(currentScreen);
+  const shouldShowSidebar = !screensWithoutSidebar.includes(currentScreen);
 
   useEffect(() => {
-    if (isDrawerOpen) {
+    // Fecha o drawer quando muda de tela ou quando está em tela sem sidebar
+    if (isDrawerOpen && (!shouldShowSidebar || currentScreen !== segments[segments.length - 1])) {
       closeDrawer();
     }
-  }, [currentScreen]);
+  }, [currentScreen, shouldShowSidebar, isDrawerOpen, segments]);
 
   if (!appReady || !theme) {
     return null;
   }
 
+  // Cria gesture condicionalmente
+  const conditionalPanGesture = shouldShowSidebar ? panGesture : Gesture.Pan().enabled(false);
+
   return (
-    <GestureHandlerRootView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <GestureHandlerRootView style={[styles.container, { backgroundColor: theme.colors.background }]}> 
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
       
-      {/* Sidebar */}
-      <SidebarDrawer
-        animatedStyle={animatedSidebarStyle}
-        onClose={closeDrawer}
-        currentScreen={currentScreen}
-      />
+      {/* Sidebar - só renderiza se permitido */}
+      {shouldShowSidebar && (
+        <>
+          <SidebarDrawer
+            animatedStyle={animatedSidebarStyle}
+            onClose={closeDrawer}
+            currentScreen={currentScreen}
+          />
+          {/* Overlay */}
+          <Animated.View style={[styles.overlay, animatedOverlayStyle]} pointerEvents="box-none">
+            <Pressable style={StyleSheet.absoluteFill} onPress={() => closeDrawer()} />
+          </Animated.View>
+        </>
+      )}
       
-      {/* Overlay */}
-      <Animated.View style={[styles.overlay, animatedOverlayStyle]} pointerEvents="box-none">
-        <Pressable style={StyleSheet.absoluteFill} onPress={() => closeDrawer()} />
-      </Animated.View>
-      
-      {/* Conteúdo principal com gesture */}
-      <GestureDetector gesture={panGesture}>
-        <Animated.View style={[styles.contentContainer, animatedContentStyle]}>
+      {/* Conteúdo principal com gesture condicional */}
+      <GestureDetector gesture={conditionalPanGesture}>
+        <Animated.View style={[styles.contentContainer, shouldShowSidebar ? animatedContentStyle : {}]}>
           {shouldShowHeader && (
             <GlobalHeader
               onMenuPress={() => {
