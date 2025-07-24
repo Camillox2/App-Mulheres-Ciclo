@@ -1,5 +1,4 @@
-// app/profile-setup.tsx
-import { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,372 +6,530 @@ import {
   StyleSheet,
   TouchableOpacity,
   Image,
-  Alert,
-  Animated,
   SafeAreaView,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
+  ScrollView,
+  Modal,
+  Pressable,
 } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import React from 'react';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSpring,
+  interpolate,
+  Easing,
+  withRepeat,
+  withSequence,
+} from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
+import { BlurView } from 'expo-blur';
+import { Feather } from '@expo/vector-icons';
+import { ParticleSystem } from '../components/ParticleSystem';
+
+const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
+const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
+
+const ScreenHeader = ({ style }: { style: any }) => (
+  <Animated.View style={[styles.header, style]}>
+    <Text style={styles.title}>Vamos nos conhecer!</Text>
+    <Text style={styles.subtitle}>
+      Para começar, nos diga seu nome e escolha uma foto.
+    </Text>
+  </Animated.View>
+);
+
+// --- INÍCIO DA ALTERAÇÃO ---
+// O componente foi reestruturado para evitar conflitos de animação com o toque.
+const ImageSelector = ({ profileImage, onSelect, animatedStyle, imageStyle, glowStyle }: any) => (
+  <Animated.View style={[styles.imageSection, animatedStyle]}>
+    <View style={styles.imageContainer}>
+      {/* Os elementos visuais (brilho e círculo da imagem) continuam animados como antes. */}
+      <Animated.View style={[styles.imageGlow, glowStyle]} />
+      <Animated.View style={[styles.imageCircle, imageStyle]}>
+        <BlurView intensity={50} tint="light" style={StyleSheet.absoluteFill} />
+        {profileImage ? (
+          <Image source={{ uri: profileImage }} style={styles.profileImage} />
+        ) : (
+          <View style={styles.placeholderImage}>
+            <Feather name="camera" size={40} color="white" />
+            <Text style={styles.placeholderText}>Adicionar foto</Text>
+          </View>
+        )}
+      </Animated.View>
+
+      {/* A MUDANÇA PRINCIPAL ESTÁ AQUI:
+        Este Pressable é uma camada invisível posicionada sobre a imagem.
+        Como ele não é animado, o evento de toque é capturado de forma mais confiável,
+        evitando que as animações abaixo (brilho, escala) interfiram.
+      */}
+      <Pressable
+        onPress={onSelect}
+        style={styles.touchableOverlay}
+      />
+    </View>
+  </Animated.View>
+);
+// --- FIM DA ALTERAÇÃO ---
+
+
+const NameInput = ({ name, setName, animatedStyle }: any) => (
+  <Animated.View style={[styles.inputSection, animatedStyle]}>
+    <Text style={styles.label}>Como podemos te chamar?</Text>
+    <AnimatedBlurView intensity={50} tint="light" style={styles.inputBlurView}>
+      <TextInput
+        style={[styles.textInput, name ? styles.textInputAlignLeft : {}]}
+        value={name}
+        onChangeText={setName}
+        placeholder="Seu nome ou apelido"
+        placeholderTextColor="rgba(255, 255, 255, 0.7)"
+        autoCapitalize="words"
+        autoCorrect={false}
+        maxLength={30}
+      />
+    </AnimatedBlurView>
+  </Animated.View>
+);
+
+const ContinueButton = ({ name, isLoading, onContinue, animatedStyle }: any) => {
+  const buttonPressScale = useSharedValue(1);
+
+  const buttonAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: buttonPressScale.value }],
+    };
+  });
+
+  return (
+    <Animated.View style={[styles.buttonContainer, animatedStyle]}>
+      <AnimatedTouchableOpacity
+        style={[styles.continueButton, { opacity: name.trim() ? 1 : 0.6 }, buttonAnimatedStyle]}
+        onPress={onContinue}
+        disabled={!name.trim() || isLoading}
+        activeOpacity={1}
+        onPressIn={() => (buttonPressScale.value = withSpring(0.98))}
+        onPressOut={() => (buttonPressScale.value = withSpring(1))}
+      >
+        <LinearGradient
+            colors={['rgba(255, 255, 255, 0.35)', 'rgba(255, 255, 255, 0.2)']}
+            style={styles.buttonGradient}
+        >
+            {isLoading ? (
+                <ActivityIndicator color="white" />
+            ) : (
+                <Text style={styles.continueButtonText}>Continuar</Text>
+            )}
+        </LinearGradient>
+      </AnimatedTouchableOpacity>
+      <Text style={styles.progressText}>Passo 1 de 2</Text>
+    </Animated.View>
+  );
+};
+
+const ImagePickerModal = ({ isVisible, onClose, onSelectCamera, onSelectGallery }: any) => (
+    <Modal
+        animationType="slide"
+        transparent={true}
+        visible={isVisible}
+        onRequestClose={onClose}
+    >
+        <Pressable style={styles.modalOverlay} onPress={onClose}>
+            <Pressable style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Escolha sua foto</Text>
+                <Text style={styles.modalSubtitle}>Selecione de onde quer pegar a imagem.</Text>
+                <TouchableOpacity style={styles.modalOption} onPress={onSelectCamera}>
+                    <Feather name="camera" size={22} color="#D63384" />
+                    <Text style={styles.modalOptionText}>Tirar Foto com a Câmera</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.modalOption} onPress={onSelectGallery}>
+                    <Feather name="image" size={22} color="#D63384" />
+                    <Text style={styles.modalOptionText}>Escolher da Galeria</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.modalOption, styles.modalCancelOption]} onPress={onClose}>
+                    <Text style={[styles.modalOptionText, styles.modalCancelText]}>Cancelar</Text>
+                </TouchableOpacity>
+            </Pressable>
+        </Pressable>
+    </Modal>
+);
 
 export default function ProfileSetupScreen() {
   const [name, setName] = useState('');
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const scaleAnim = useState(new Animated.Value(1))[0];
+  const [isModalVisible, setModalVisible] = useState(false);
 
-  const requestPermission = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert(
-        'Permissão necessária',
-        'Precisamos de permissão para acessar suas fotos para você escolher uma foto de perfil.'
-      );
-      return false;
-    }
-    return true;
-  };
+  const progress = useSharedValue(0);
+  const imageScale = useSharedValue(1);
+  const glowAnimation = useSharedValue(0);
+  
+  const totalAnimationDuration = 1400;
 
-  const selectImage = async () => {
-    const hasPermission = await requestPermission();
-    if (!hasPermission) return;
+  useEffect(() => {
+    progress.value = withTiming(1, {
+      duration: totalAnimationDuration,
+      easing: Easing.out(Easing.exp),
+    });
 
-    Alert.alert(
-      'Escolher foto',
-      'Como você gostaria de adicionar sua foto?',
-      [
-        {
-          text: 'Câmera',
-          onPress: takePicture,
-        },
-        {
-          text: 'Galeria',
-          onPress: pickImage,
-        },
-        {
-          text: 'Cancelar',
-          style: 'cancel',
-        },
-      ]
+    glowAnimation.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
+        withTiming(0.5, { duration: 2000, easing: Easing.inOut(Easing.ease) })
+      ),
+      -1,
+      true
     );
-  };
+  }, [progress, glowAnimation]);
 
-  const takePicture = async () => {
+  const takePicture = useCallback(async () => {
+    setModalVisible(false);
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permissão de câmera necessária');
-      return;
-    }
+    if (status !== 'granted') return;
 
     const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
+      allowsEditing: true, aspect: [1, 1], quality: 0.8,
     });
 
     if (!result.canceled) {
-      setProfileImage(result.assets[0].uri);
+      setProfileImage(result.assets?.[0]?.uri || null);
       animateImageSelect();
     }
-  };
+  }, []);
 
-  const pickImage = async () => {
+  const pickImage = useCallback(async () => {
+    setModalVisible(false);
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') return;
+
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
+      mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, aspect: [1, 1], quality: 0.8,
     });
 
     if (!result.canceled) {
-      setProfileImage(result.assets[0].uri);
+      setProfileImage(result.assets?.[0]?.uri || null);
       animateImageSelect();
     }
-  };
+  }, []);
 
-  const animateImageSelect = () => {
-    Animated.sequence([
-      Animated.timing(scaleAnim, {
-        toValue: 1.1,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-      Animated.timing(scaleAnim, {
-        toValue: 1,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  };
+  const animateImageSelect = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    imageScale.value = withSpring(1.1, { damping: 10, stiffness: 300 }, () => {
+      imageScale.value = withSpring(1);
+    });
+  }, [imageScale]);
 
-  const handleContinue = async () => {
+  const handleContinue = useCallback(async () => {
     if (!name.trim()) {
-      Alert.alert('Nome necessário', 'Por favor, digite seu nome para continuar.');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
 
     setIsLoading(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     try {
-      const userProfile = {
-        name: name.trim(),
-        profileImage,
-        setupDate: new Date().toISOString(),
-      };
-
+      const userProfile = { name: name.trim(), profileImage, setupDate: new Date().toISOString() };
       await AsyncStorage.setItem('userProfile', JSON.stringify(userProfile));
-      
-      // Pequeno delay para feedback visual
-      setTimeout(() => {
-        router.push('/cycle-setup');
-      }, 500);
-      
+      router.push('/cycle-setup');
     } catch (error) {
       console.error('Erro ao salvar perfil:', error);
-      Alert.alert('Erro', 'Não foi possível salvar seu perfil. Tente novamente.');
+    } finally {
       setIsLoading(false);
     }
+  }, [name, profileImage]);
+
+  const createAnimatedStyle = (delay: number) => {
+    const itemAnimationDuration = 800;
+    return useAnimatedStyle(() => {
+      const startRange = delay / totalAnimationDuration;
+      const endRange = (delay + itemAnimationDuration) / totalAnimationDuration;
+      return {
+        opacity: interpolate(progress.value, [startRange, endRange], [0, 1], 'clamp'),
+        transform: [{ translateY: interpolate(progress.value, [startRange, endRange], [40, 0], 'clamp') }],
+      };
+    });
   };
+
+  const headerStyle = createAnimatedStyle(0);
+  const imageSectionStyle = createAnimatedStyle(200);
+  const inputSectionStyle = createAnimatedStyle(400);
+  const buttonSectionStyle = createAnimatedStyle(600);
+
+  const imageAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: imageScale.value }],
+  }));
+
+  const glowStyle = useAnimatedStyle(() => ({
+    shadowOpacity: interpolate(glowAnimation.value, [0, 1], [0.3, 0.7]),
+  }));
 
   return (
     <SafeAreaView style={styles.container}>
       <LinearGradient
-        colors={['#FF6B9D', '#FFB4D6', '#FF6B9D']}
+        colors={['#D63384', '#FFB4D6', '#8E44AD']}
         style={styles.gradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
+        start={{ x: 0.1, y: 0 }}
+        end={{ x: 0.9, y: 1 }}
       >
+        <View style={styles.particleContainer}>
+            <ParticleSystem particleColor="rgba(255, 255, 255, 0.4)" count={12} enabled={!isModalVisible} />
+        </View>
         <KeyboardAvoidingView
           style={styles.keyboardContainer}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={60}
         >
-          {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.title}>Vamos nos conhecer! 😊</Text>
-            <Text style={styles.subtitle}>
-              Conte-nos um pouco sobre você para personalizar sua experiência
-            </Text>
-          </View>
-
-          {/* Form */}
-          <View style={styles.form}>
-            {/* Foto de perfil */}
-            <View style={styles.imageSection}>
-              <Text style={styles.label}>Sua foto (opcional)</Text>
-              <TouchableOpacity
-                style={styles.imageContainer}
-                onPress={selectImage}
-              >
-                <Animated.View
-                  style={[
-                    styles.imageCircle,
-                    { transform: [{ scale: scaleAnim }] }
-                  ]}
-                >
-                  {profileImage ? (
-                    <Image source={{ uri: profileImage }} style={styles.profileImage} />
-                  ) : (
-                    <View style={styles.placeholderImage}>
-                      <Text style={styles.placeholderEmoji}>📷</Text>
-                      <Text style={styles.placeholderText}>Adicionar foto</Text>
-                    </View>
-                  )}
-                </Animated.View>
-              </TouchableOpacity>
-            </View>
-
-            {/* Nome */}
-            <View style={styles.inputSection}>
-              <Text style={styles.label}>Como você gostaria de ser chamada?</Text>
-              <View style={styles.inputContainer}>
-                <TextInput
-                  style={styles.textInput}
-                  value={name}
-                  onChangeText={setName}
-                  placeholder="Digite seu nome aqui"
-                  placeholderTextColor="rgba(255, 107, 157, 0.5)"
-                  autoCapitalize="words"
-                  autoCorrect={false}
-                  maxLength={30}
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="always"
+            bounces={false}
+          >
+            <View>
+                <ScreenHeader style={headerStyle} />
+                <ImageSelector
+                  profileImage={profileImage}
+                  onSelect={() => {
+                    console.log('Botão de imagem pressionado!');
+                    setModalVisible(true);
+                  }}
+                  animatedStyle={imageSectionStyle}
+                  imageStyle={imageAnimatedStyle}
+                  glowStyle={glowStyle}
                 />
-              </View>
+                <NameInput name={name} setName={setName} animatedStyle={inputSectionStyle} />
             </View>
-          </View>
-
-          {/* Botão continuar */}
-          <View style={styles.buttonContainer}>
-            <TouchableOpacity
-              style={[
-                styles.continueButton,
-                { opacity: name.trim() ? 1 : 0.6 }
-              ]}
-              onPress={handleContinue}
-              disabled={!name.trim() || isLoading}
-            >
-              <Text style={styles.continueButtonText}>
-                {isLoading ? 'Salvando...' : 'Continuar'}
-              </Text>
-            </TouchableOpacity>
-
-            <Text style={styles.progressText}>1 de 2 - Perfil</Text>
-          </View>
+            <ContinueButton
+              name={name}
+              isLoading={isLoading}
+              onContinue={handleContinue}
+              animatedStyle={buttonSectionStyle}
+            />
+          </ScrollView>
         </KeyboardAvoidingView>
-
-        {/* Decoração */}
-        <View style={styles.decoration}>
-          <View style={styles.decorationCircle1} />
-          <View style={styles.decorationCircle2} />
-        </View>
       </LinearGradient>
+      <ImagePickerModal
+        isVisible={isModalVisible}
+        onClose={() => setModalVisible(false)}
+        onSelectCamera={takePicture}
+        onSelectGallery={pickImage}
+      />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  gradient: {
-    flex: 1,
-  },
-  keyboardContainer: {
-    flex: 1,
-    justifyContent: 'space-between',
-    paddingHorizontal: 30,
-    paddingVertical: 40,
-    zIndex: 10,
-  },
-  header: {
-    alignItems: 'center',
-    marginTop: 20,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: 'white',
-    textAlign: 'center',
-    marginBottom: 15,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: 'white',
-    textAlign: 'center',
-    opacity: 0.9,
-    lineHeight: 22,
-  },
-  form: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  imageSection: {
-    alignItems: 'center',
-    marginBottom: 40,
-  },
-  label: {
-    fontSize: 16,
-    color: 'white',
-    marginBottom: 15,
-    textAlign: 'center',
-    opacity: 0.9,
-  },
-  imageContainer: {
-    alignItems: 'center',
-  },
-  imageCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 3,
-    borderColor: 'white',
-  },
-  profileImage: {
-    width: 114,
-    height: 114,
-    borderRadius: 57,
-  },
-  placeholderImage: {
-    alignItems: 'center',
-  },
-  placeholderEmoji: {
-    fontSize: 40,
-    marginBottom: 5,
-  },
-  placeholderText: {
-    color: 'white',
-    fontSize: 12,
-    opacity: 0.8,
-  },
-  inputSection: {
-    marginBottom: 30,
-  },
-  inputContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    borderRadius: 15,
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-  },
-  textInput: {
-    fontSize: 18,
-    color: '#FF6B9D',
-    textAlign: 'center',
-  },
-  buttonContainer: {
-    alignItems: 'center',
-  },
-  continueButton: {
-    backgroundColor: 'white',
-    borderRadius: 25,
-    paddingVertical: 18,
-    paddingHorizontal: 60,
-    marginBottom: 15,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-  },
-  continueButtonText: {
-    color: '#FF6B9D',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  progressText: {
-    color: 'white',
-    fontSize: 14,
-    opacity: 0.7,
-  },
-  decoration: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 1,
-  },
-  decorationCircle1: {
-    position: 'absolute',
-    top: 150,
-    right: -60,
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  decorationCircle2: {
-    position: 'absolute',
-    bottom: 200,
-    left: -40,
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-  },
+    container: {
+        flex: 1,
+        backgroundColor: '#D63384',
+    },
+    gradient: {
+        flex: 1,
+    },
+    particleContainer: {
+        ...StyleSheet.absoluteFillObject,
+        zIndex: -1,
+    },
+    keyboardContainer: {
+        flex: 1,
+    },
+    scrollContent: {
+        flexGrow: 1,
+        justifyContent: 'space-between',
+        paddingHorizontal: 30,
+        paddingTop: Platform.OS === 'ios' ? 20 : 60,
+        paddingBottom: 40,
+    },
+    header: {
+        alignItems: 'center',
+        marginBottom: 40,
+    },
+    title: {
+        fontSize: 32,
+        fontWeight: '700',
+        color: 'white',
+        textAlign: 'center',
+        marginBottom: 12,
+        textShadowColor: 'rgba(0,0,0,0.2)',
+        textShadowOffset: { width: 0, height: 2 },
+        textShadowRadius: 4,
+    },
+    subtitle: {
+        fontSize: 18,
+        color: 'rgba(255, 255, 255, 0.9)',
+        textAlign: 'center',
+        lineHeight: 25,
+        maxWidth: '95%',
+    },
+    imageSection: {
+        alignItems: 'center',
+        marginBottom: 40,
+    },
+    label: {
+        fontSize: 16,
+        color: 'white',
+        fontWeight: '500',
+        marginBottom: 15,
+        textAlign: 'center',
+    },
+    imageContainer: {
+        width: 140,
+        height: 140,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    touchableOverlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        // backgroundColor: 'rgba(255, 0, 0, 0.3)', // Descomente para visualizar a área de toque
+        zIndex: 1, // Garante que a camada de toque fique por cima
+    },
+    imageGlow: {
+        position: 'absolute',
+        width: 140,
+        height: 140,
+        borderRadius: 70,
+        backgroundColor: 'white',
+        shadowColor: 'white',
+        shadowRadius: 20,
+        shadowOffset: { width: 0, height: 0 },
+        elevation: 15,
+    },
+    imageCircle: {
+        width: 140,
+        height: 140,
+        borderRadius: 70,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 2,
+        borderColor: 'rgba(255, 255, 255, 0.5)',
+        overflow: 'hidden',
+    },
+    profileImage: {
+        width: '100%',
+        height: '100%',
+    },
+    placeholderImage: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        width: '100%',
+        height: '100%',
+    },
+    placeholderText: {
+        color: 'white',
+        fontSize: 14,
+        fontWeight: '600',
+        marginTop: 8,
+    },
+    inputSection: {
+        marginBottom: 40,
+    },
+    inputBlurView: {
+        borderRadius: 15,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.2)',
+    },
+    textInput: {
+        fontSize: 18,
+        color: 'white',
+        fontWeight: '500',
+        textAlign: 'center',
+        paddingHorizontal: 20,
+        paddingVertical: Platform.OS === 'ios' ? 18 : 14,
+        backgroundColor: 'transparent',
+    },
+    textInputAlignLeft: {
+        textAlign: 'left',
+    },
+    buttonContainer: {
+        alignItems: 'center',
+        paddingBottom: 20,
+    },
+    continueButton: {
+        borderRadius: 30,
+        width: '100%',
+        marginBottom: 15,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
+        elevation: 5,
+        overflow: 'hidden',
+    },
+    buttonGradient: {
+        paddingVertical: 18,
+        width: '100%',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.4)',
+    },
+    continueButtonText: {
+        color: 'white',
+        fontSize: 18,
+        fontWeight: 'bold',
+    },
+    progressText: {
+        color: 'rgba(255, 255, 255, 0.8)',
+        fontSize: 14,
+        fontWeight: '500',
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'flex-end',
+    },
+    modalContent: {
+        backgroundColor: 'white',
+        padding: 20,
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        paddingBottom: Platform.OS === 'ios' ? 40 : 25,
+    },
+    modalTitle: {
+        fontSize: 22,
+        fontWeight: 'bold',
+        textAlign: 'center',
+        marginBottom: 8,
+    },
+    modalSubtitle: {
+        fontSize: 16,
+        textAlign: 'center',
+        color: '#666',
+        marginBottom: 25,
+    },
+    modalOption: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#f0f0f5',
+        padding: 15,
+        borderRadius: 12,
+        marginBottom: 12,
+    },
+    modalOptionText: {
+        fontSize: 17,
+        fontWeight: '600',
+        marginLeft: 15,
+        color: '#333'
+    },
+    modalCancelOption: {
+        backgroundColor: 'transparent',
+        marginTop: 10,
+        justifyContent: 'center'
+    },
+    modalCancelText: {
+        color: '#D63384',
+        marginLeft: 0,
+    }
 });

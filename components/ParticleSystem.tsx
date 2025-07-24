@@ -24,7 +24,7 @@ const { width, height } = Dimensions.get('window');
 const ParticleSystemComponent: React.FC<ParticleSystemProps> = ({
   particleColor,
   opacity = 0.6,
-  count = 15,
+  count = 26,
   duration = 10000,
   enabled = true,
 }) => {
