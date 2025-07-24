@@ -43,6 +43,7 @@ const menuItems = [
   { key: 'calendar', icon: '📅', label: 'Calendário', screen: 'calendar' },
   { key: 'records', icon: '📝', label: 'Registros', screen: 'records' },
   { key: 'analytics', icon: '📊', label: 'Estatísticas', screen: 'analytics' },
+  { key: 'theme-settings', icon: '🎨', label: 'Temas', screen: 'theme-settings' },
   { key: 'settings', icon: '⚙️', label: 'Configurações', screen: 'settings' },
 ];
 

@@ -1,4 +1,4 @@
-// app/profile-setup.tsx - VERSÃO COMPLETAMENTE CORRIGIDA
+// app/profile-setup.tsx - MODAL COMPLETAMENTE REFATORADO
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
@@ -13,10 +13,9 @@ import {
   ActivityIndicator,
   ScrollView,
   Modal,
-  Pressable,
   Keyboard,
   Dimensions,
-  TouchableWithoutFeedback,
+  Alert,
 } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -41,7 +40,7 @@ const { width, height } = Dimensions.get('window');
 const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
 const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
 
-// ===== COMPONENTES SEPARADOS PARA MELHOR ORGANIZAÇÃO =====
+// ===== COMPONENTES SEPARADOS =====
 
 const ScreenHeader = ({ style }: { style: any }) => (
   <Animated.View style={[styles.header, style]}>
@@ -61,10 +60,8 @@ const ImageSelector = ({
 }: any) => (
   <Animated.View style={[styles.imageSection, animatedStyle]}>
     <View style={styles.imageContainer}>
-      {/* Glow Effect */}
       <Animated.View style={[styles.imageGlow, glowStyle]} />
       
-      {/* Imagem Principal */}
       <Animated.View style={[styles.imageCircle, imageStyle]}>
         <BlurView intensity={30} tint="light" style={StyleSheet.absoluteFill} />
         {profileImage ? (
@@ -77,7 +74,6 @@ const ImageSelector = ({
         )}
       </Animated.View>
 
-      {/* Botão de Toque - CORRIGIDO */}
       <TouchableOpacity
         style={styles.imageButton}
         onPress={onSelect}
@@ -124,7 +120,6 @@ const NameInput = ({ name, setName, animatedStyle }: any) => {
         />
       </AnimatedBlurView>
       
-      {/* Contador de caracteres */}
       <Text style={styles.characterCount}>
         {name.length}/30
       </Text>
@@ -190,87 +185,12 @@ const ContinueButton = ({
   );
 };
 
-const ImagePickerModal = ({ 
-  isVisible, 
-  onClose, 
-  onSelectCamera, 
-  onSelectGallery 
-}: any) => (
-  <Modal
-    animationType="slide"
-    transparent={true}
-    visible={isVisible}
-    onRequestClose={onClose}
-    statusBarTranslucent
-  >
-    <TouchableWithoutFeedback onPress={onClose}>
-      <View style={styles.modalOverlay}>
-        <TouchableWithoutFeedback>
-          <Animated.View style={styles.modalContent}>
-            <View style={styles.modalHandle} />
-            
-            <Text style={styles.modalTitle}>Escolha sua foto</Text>
-            <Text style={styles.modalSubtitle}>
-              Selecione de onde quer pegar a imagem.
-            </Text>
-            
-            <View style={styles.modalOptions}>
-              <TouchableOpacity 
-                style={styles.modalOption} 
-                onPress={onSelectCamera}
-                activeOpacity={0.8}
-              >
-                <View style={styles.modalOptionIcon}>
-                  <Feather name="camera" size={24} color="#D63384" />
-                </View>
-                <View style={styles.modalOptionContent}>
-                  <Text style={styles.modalOptionText}>Tirar Foto</Text>
-                  <Text style={styles.modalOptionSubtext}>
-                    Use a câmera do seu celular
-                  </Text>
-                </View>
-                <Feather name="chevron-right" size={20} color="#999" />
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={styles.modalOption} 
-                onPress={onSelectGallery}
-                activeOpacity={0.8}
-              >
-                <View style={styles.modalOptionIcon}>
-                  <Feather name="image" size={24} color="#D63384" />
-                </View>
-                <View style={styles.modalOptionContent}>
-                  <Text style={styles.modalOptionText}>Escolher da Galeria</Text>
-                  <Text style={styles.modalOptionSubtext}>
-                    Selecione uma foto existente
-                  </Text>
-                </View>
-                <Feather name="chevron-right" size={20} color="#999" />
-              </TouchableOpacity>
-            </View>
-            
-            <TouchableOpacity 
-              style={styles.modalCancelButton} 
-              onPress={onClose}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.modalCancelText}>Cancelar</Text>
-            </TouchableOpacity>
-          </Animated.View>
-        </TouchableWithoutFeedback>
-      </View>
-    </TouchableWithoutFeedback>
-  </Modal>
-);
-
 // ===== COMPONENTE PRINCIPAL =====
 
 export default function ProfileSetupScreen() {
   const [name, setName] = useState('');
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [isModalVisible, setModalVisible] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   // Animações
@@ -319,14 +239,37 @@ export default function ProfileSetupScreen() {
     );
   }, []);
 
+  // Função para mostrar as opções de imagem
+  const showImageOptions = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    
+    Alert.alert(
+      'Escolha sua foto',
+      'Selecione de onde quer pegar a imagem.',
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Tirar Foto',
+          onPress: takePicture,
+        },
+        {
+          text: 'Escolher da Galeria',
+          onPress: pickImage,
+        },
+      ],
+      { cancelable: true }
+    );
+  }, []);
+
   // Funções de imagem
   const takePicture = useCallback(async () => {
-    setModalVisible(false);
-    
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
-        alert('Precisamos de permissão para acessar a câmera!');
+        Alert.alert('Permissão necessária', 'Precisamos de permissão para acessar a câmera!');
         return;
       }
 
@@ -342,16 +285,15 @@ export default function ProfileSetupScreen() {
       }
     } catch (error) {
       console.error('Erro ao tirar foto:', error);
+      Alert.alert('Erro', 'Não foi possível tirar a foto. Tente novamente.');
     }
   }, []);
 
   const pickImage = useCallback(async () => {
-    setModalVisible(false);
-    
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        alert('Precisamos de permissão para acessar a galeria!');
+        Alert.alert('Permissão necessária', 'Precisamos de permissão para acessar a galeria!');
         return;
       }
 
@@ -368,6 +310,7 @@ export default function ProfileSetupScreen() {
       }
     } catch (error) {
       console.error('Erro ao selecionar imagem:', error);
+      Alert.alert('Erro', 'Não foi possível selecionar a imagem. Tente novamente.');
     }
   }, []);
 
@@ -382,7 +325,7 @@ export default function ProfileSetupScreen() {
   const handleContinue = useCallback(async () => {
     if (!name.trim() || name.trim().length < 2) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      alert('Por favor, digite um nome com pelo menos 2 caracteres.');
+      Alert.alert('Nome necessário', 'Por favor, digite um nome com pelo menos 2 caracteres.');
       return;
     }
 
@@ -398,13 +341,12 @@ export default function ProfileSetupScreen() {
       
       await AsyncStorage.setItem('userProfile', JSON.stringify(userProfile));
       
-      // Pequeno delay para feedback visual
       setTimeout(() => {
         router.push('/cycle-setup');
       }, 500);
     } catch (error) {
       console.error('Erro ao salvar perfil:', error);
-      alert('Erro ao salvar suas informações. Tente novamente.');
+      Alert.alert('Erro', 'Erro ao salvar suas informações. Tente novamente.');
       setIsLoading(false);
     }
   }, [name, profileImage]);
@@ -451,7 +393,7 @@ export default function ProfileSetupScreen() {
           <ParticleSystem 
             particleColor="rgba(255, 255, 255, 0.4)" 
             count={12} 
-            enabled={!isModalVisible} 
+            enabled={true} 
           />
         </View>
 
@@ -475,7 +417,7 @@ export default function ProfileSetupScreen() {
               
               <ImageSelector
                 profileImage={profileImage}
-                onSelect={() => setModalVisible(true)}
+                onSelect={showImageOptions}
                 animatedStyle={imageSectionStyle}
                 imageStyle={imageAnimatedStyle}
                 glowStyle={glowStyle}
@@ -488,7 +430,7 @@ export default function ProfileSetupScreen() {
               />
             </View>
 
-            {/* Botão Continuar - Fixo na parte inferior */}
+            {/* Botão Continuar */}
             <ContinueButton
               name={name}
               isLoading={isLoading}
@@ -497,14 +439,6 @@ export default function ProfileSetupScreen() {
             />
           </ScrollView>
         </KeyboardAvoidingView>
-
-        {/* Modal de Seleção de Imagem */}
-        <ImagePickerModal
-          isVisible={isModalVisible}
-          onClose={() => setModalVisible(false)}
-          onSelectCamera={takePicture}
-          onSelectGallery={pickImage}
-        />
       </LinearGradient>
     </SafeAreaView>
   );
@@ -713,89 +647,5 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.8)',
     fontSize: 14,
     fontWeight: '500',
-  },
-
-  // Modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: 'white',
-    borderTopLeftRadius: 25,
-    borderTopRightRadius: 25,
-    paddingTop: 12,
-    paddingHorizontal: 20,
-    paddingBottom: Platform.OS === 'ios' ? 40 : 25,
-    elevation: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-  },
-  modalHandle: {
-    width: 40,
-    height: 4,
-    backgroundColor: '#E0E0E0',
-    borderRadius: 2,
-    alignSelf: 'center',
-    marginBottom: 20,
-  },
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 8,
-    color: '#2C2C2C',
-  },
-  modalSubtitle: {
-    fontSize: 16,
-    textAlign: 'center',
-    color: '#666',
-    marginBottom: 30,
-  },
-  modalOptions: {
-    marginBottom: 20,
-  },
-  modalOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8F9FA',
-    padding: 18,
-    borderRadius: 15,
-    marginBottom: 12,
-  },
-  modalOptionIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: 'rgba(214, 51, 132, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 15,
-  },
-  modalOptionContent: {
-    flex: 1,
-  },
-  modalOptionText: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#2C2C2C',
-    marginBottom: 4,
-  },
-  modalOptionSubtext: {
-    fontSize: 14,
-    color: '#666',
-  },
-  modalCancelButton: {
-    backgroundColor: 'transparent',
-    paddingVertical: 15,
-    alignItems: 'center',
-  },
-  modalCancelText: {
-    color: '#D63384',
-    fontSize: 17,
-    fontWeight: '600',
   },
 });

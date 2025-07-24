@@ -1,3 +1,4 @@
+// app/calendar.tsx - VERSÃO ATUALIZADA COM MODAL APRIMORADO
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
@@ -8,10 +9,8 @@ import {
   Animated,
   Dimensions,
   StatusBar,
-  Modal,
   SafeAreaView,
-  Pressable,
-  Image, // Importar o componente Image
+  Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAdaptiveTheme } from '../hooks/useAdaptiveTheme';
@@ -19,13 +18,13 @@ import { getDayInfo, DayInfo } from '../hooks/cycleCalculations';
 import { PHASE_INFO } from '../constants/appConstants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import moment from 'moment';
+import ImprovedCalendarModal from '../components/ImprovedCalendarModal'; // IMPORT DO MODAL APRIMORADO
 
 const { width, height } = Dimensions.get('window');
 const CALENDAR_PADDING = 20;
 const CALENDAR_WIDTH = width - (CALENDAR_PADDING * 2);
 const DAY_SIZE = Math.floor((CALENDAR_WIDTH - 42) / 7);
 
-// Certifique-se de que a sua logo está neste caminho
 const logoFour = require('../assets/images/logoFour.png');
 
 interface CycleData {
@@ -130,80 +129,6 @@ const BeautifulCalendarDay = React.memo<{
   );
 });
 
-const BeautifulDayModal = React.memo<{
-  visible: boolean;
-  onClose: () => void;
-  dayInfo: DayInfo | null;
-  theme: any;
-}>(({ visible, onClose, dayInfo, theme }) => {
-  const slideAnim = useRef(new Animated.Value(height)).current;
-  const opacityAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    if (visible) {
-      Animated.parallel([
-        Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true, tension: 60, friction: 10 }),
-        Animated.timing(opacityAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
-      ]).start();
-    } else {
-      Animated.parallel([
-        Animated.timing(slideAnim, { toValue: height, duration: 250, useNativeDriver: true }),
-        Animated.timing(opacityAnim, { toValue: 0, duration: 250, useNativeDriver: true }),
-      ]).start();
-    }
-  }, [visible, slideAnim, opacityAnim]);
-
-  if (!dayInfo) return null;
-
-  const phaseInfo = PHASE_INFO[dayInfo.phase];
-  const phaseColors = BEAUTIFUL_COLORS[dayInfo.phase];
-
-  return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
-      <Animated.View style={[styles.modalOverlay, { opacity: opacityAnim }]}>
-        <Pressable style={styles.modalBackground} onPress={onClose} />
-        <Animated.View style={[styles.beautifulModal, { backgroundColor: theme.colors.surface, transform: [{ translateY: slideAnim }] }]}>
-          <LinearGradient colors={phaseColors.gradient as [string, string, ...string[]]} style={styles.modalHeader} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-            <TouchableOpacity style={styles.modalCloseButton} onPress={onClose}>
-              <Text style={styles.modalCloseText}>×</Text>
-            </TouchableOpacity>
-            <View style={styles.modalHeaderContent}>
-              <Image source={logoFour} style={styles.modalLogo} />
-              <Text style={styles.modalDate}>{dayInfo.date.format('DD')}</Text>
-              <Text style={styles.modalDayName}>{dayInfo.date.format('dddd, DD [de] MMMM')}</Text>
-            </View>
-          </LinearGradient>
-          <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
-            <View style={[styles.phaseSection, { borderLeftColor: phaseInfo.color }]}>
-              <Text style={[styles.phaseName, { color: theme.colors.text.primary }]}>{phaseInfo.name}</Text>
-              <Text style={[styles.phaseDescription, { color: theme.colors.text.secondary }]}>{phaseInfo.description}</Text>
-            </View>
-            <View style={[styles.tipsSection, { backgroundColor: `${phaseInfo.color}1A` }]}>
-              <Text style={[styles.tipsTitle, { color: phaseInfo.color }]}>💡 Dicas para hoje</Text>
-              {phaseInfo.tips.map((tip, index) => (
-                <View key={index} style={styles.tipItem}>
-                  <Text style={[styles.tipBullet, { color: phaseInfo.color }]}>•</Text>
-                  <Text style={[styles.tipText, { color: theme.colors.text.primary }]}>{tip}</Text>
-                </View>
-              ))}
-            </View>
-            <View style={styles.statsSection}>
-              <View style={[styles.statItem, { backgroundColor: theme.colors.background }]}>
-                <Text style={[styles.statLabel, { color: theme.colors.text.secondary }]}>Dia do Ciclo</Text>
-                <Text style={[styles.statValue, { color: phaseInfo.color }]}>{dayInfo.dayOfCycle}º</Text>
-              </View>
-              <View style={[styles.statItem, { backgroundColor: theme.colors.background }]}>
-                <Text style={[styles.statLabel, { color: theme.colors.text.secondary }]}>Fertilidade</Text>
-                <Text style={[styles.statValue, { color: phaseInfo.color }]}>{dayInfo.pregnancyChance}%</Text>
-              </View>
-            </View>
-          </ScrollView>
-        </Animated.View>
-      </Animated.View>
-    </Modal>
-  );
-});
-
 export default function BeautifulCalendarScreen() {
   const { theme, isDarkMode } = useAdaptiveTheme();
   const [currentMonth, setCurrentMonth] = useState(moment());
@@ -250,6 +175,10 @@ export default function BeautifulCalendarScreen() {
 
   const handleCloseModal = useCallback(() => {
     setModalVisible(false);
+    // Pequeno delay para evitar conflitos de estado
+    setTimeout(() => {
+      setSelectedDay(null);
+    }, 300);
   }, []);
 
   const navigateMonth = useCallback((direction: 'prev' | 'next') => {
@@ -328,22 +257,22 @@ export default function BeautifulCalendarScreen() {
           </ScrollView>
         </Animated.View>
       </SafeAreaView>
-      <BeautifulDayModal visible={modalVisible} onClose={handleCloseModal} dayInfo={selectedDay} theme={theme} />
+      
+      {/* MODAL APRIMORADO SUBSTITUINDO O ANTERIOR */}
+      <ImprovedCalendarModal
+        visible={modalVisible}
+        onClose={handleCloseModal}
+        dayInfo={selectedDay}
+      />
     </View>
   );
 }
 
+// ESTILOS PERMANECEM OS MESMOS...
 const styles = StyleSheet.create({
-  // =================================
-  // Contenedores Principais e Layout
-  // =================================
   container: { flex: 1 },
   safeArea: { flex: 1 },
   content: { flex: 1 },
-
-  // =================================
-  // Ecrãs de Estado (Loading, Vazio)
-  // =================================
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   loadingGradient: { flex: 1, justifyContent: 'center', alignItems: 'center', width: '100%' },
   loadingText: { color: 'white', fontSize: 20, fontWeight: '700' },
@@ -351,20 +280,12 @@ const styles = StyleSheet.create({
   emptyEmoji: { fontSize: 80, marginBottom: 24 },
   emptyTitle: { fontSize: 24, fontWeight: '700', textAlign: 'center', marginBottom: 12 },
   emptySubtitle: { fontSize: 16, textAlign: 'center', lineHeight: 24 },
-
-  // =================================
-  // Cabeçalho do Calendário (Header)
-  // =================================
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: CALENDAR_PADDING, paddingVertical: 20, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 3 },
   navButton: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
   navIcon: { fontSize: 24, fontWeight: 'bold' },
   monthContainer: { alignItems: 'center' },
   monthText: { fontSize: 24, fontWeight: '700', textTransform: 'capitalize' },
   yearText: { fontSize: 14, fontWeight: '500', marginTop: 2 },
-
-  // =================================
-  // Conteúdo do Calendário (Scroll)
-  // =================================
   scroll: { flex: 1, paddingHorizontal: CALENDAR_PADDING },
   legend: { borderRadius: 16, paddingVertical: 10, marginVertical: 16, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 3 },
   legendContent: { paddingHorizontal: 16, alignItems: 'center' },
@@ -376,10 +297,6 @@ const styles = StyleSheet.create({
   weekDay: { alignItems: 'center', paddingVertical: 8 },
   weekDayText: { fontSize: 12, fontWeight: '700', letterSpacing: 0.5 },
   calendarGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-around', paddingBottom: 30 },
-  
-  // =================================
-  // Componentes de Dia do Calendário
-  // =================================
   dayContainer: { marginBottom: 6, alignItems: 'center', justifyContent: 'center' },
   modernDayButton: { width: DAY_SIZE - 4, height: DAY_SIZE - 4, borderRadius: (DAY_SIZE - 4) / 2, justifyContent: 'center', alignItems: 'center', position: 'relative', overflow: 'hidden' },
   todayButton: { borderWidth: 3, borderColor: 'transparent' },
@@ -390,31 +307,4 @@ const styles = StyleSheet.create({
   fertilityDot: { width: 4, height: 4, borderRadius: 2, marginRight: 2 },
   phaseDot: { width: 3, height: 3, borderRadius: 1.5 },
   todayBorder: { position: 'absolute', top: -2, left: -2, right: -2, bottom: -2, borderRadius: DAY_SIZE / 2, borderWidth: 2 },
-  
-  // =================================
-  // Modal de Detalhes do Dia
-  // =================================
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.6)', justifyContent: 'flex-end' },
-  modalBackground: { ...StyleSheet.absoluteFillObject },
-  beautifulModal: { borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: height * 0.8, elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.25, shadowRadius: 12 },
-  modalHeader: { borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingVertical: 15, paddingHorizontal: 24, position: 'relative' },
-  modalCloseButton: { position: 'absolute', top: 16, right: 16, width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255, 255, 255, 0.3)', justifyContent: 'center', alignItems: 'center', zIndex: 10 },
-  modalCloseText: { color: 'white', fontSize: 20, fontWeight: 'bold' },
-  modalHeaderContent: { alignItems: 'center' },
-  modalLogo: { width: 40, height: 40, marginBottom: 8 },
-  modalDate: { fontSize: 36, fontWeight: '800', color: 'white', marginBottom: 4, textShadowColor: 'rgba(0,0,0,0.3)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 },
-  modalDayName: { fontSize: 16, color: 'rgba(255, 255, 255, 0.9)', fontWeight: '500', textTransform: 'capitalize' },
-  modalBody: { paddingHorizontal: 24, paddingBottom: 24, paddingTop: 20 },
-  phaseSection: { borderLeftWidth: 4, paddingLeft: 16, marginBottom: 20 },
-  phaseName: { fontSize: 20, fontWeight: '700', marginBottom: 4 },
-  phaseDescription: { fontSize: 16, lineHeight: 22 },
-  statsSection: { flexDirection: 'row', marginTop: 24, gap: 12 },
-  statItem: { flex: 1, borderRadius: 12, padding: 16, alignItems: 'center' },
-  statLabel: { fontSize: 12, fontWeight: '600', marginBottom: 4 },
-  statValue: { fontSize: 24, fontWeight: '800' },
-  tipsSection: { borderRadius: 12, padding: 16, marginBottom: 10 },
-  tipsTitle: { fontSize: 16, fontWeight: '700', marginBottom: 12 },
-  tipItem: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 8 },
-  tipBullet: { fontSize: 14, marginRight: 10, lineHeight: 22 },
-  tipText: { fontSize: 14, lineHeight: 22, fontWeight: '500', flex: 1 },
 });
