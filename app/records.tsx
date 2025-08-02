@@ -12,7 +12,7 @@ import {
   Modal,
 } from 'react-native';
 import { router } from 'expo-router';
-import { useAdaptiveTheme } from '../hooks/useAdaptiveTheme';
+import { useThemeSystem } from '../hooks/useThemeSystem';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import moment from 'moment';
 import React from 'react';
@@ -64,7 +64,7 @@ const FLOW_TYPES = [
 ];
 
 export default function RecordsScreen() {
-  const { theme } = useAdaptiveTheme();
+  const { theme } = useThemeSystem();
   const [selectedDate, setSelectedDate] = useState(moment().format('YYYY-MM-DD'));
   const [todayRecords, setTodayRecords] = useState<Record[]>([]);
   const [showSymptomModal, setShowSymptomModal] = useState(false);
@@ -626,7 +626,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#FF4444',
+    backgroundColor: '#dc3545',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -646,7 +646,7 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'center',
     alignItems: 'center',
   },

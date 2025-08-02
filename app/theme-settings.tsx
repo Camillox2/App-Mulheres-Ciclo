@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useAdaptiveTheme } from '../hooks/useAdaptiveTheme';
+import { useThemeSystem } from '../hooks/useThemeSystem';
 import { ParticleSystem } from '../components/ParticleSystem';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -264,7 +264,7 @@ const ThemeVariantCard: React.FC<ThemeVariantCardProps> = ({
 };
 
 export default function ThemeSettingsScreen() {
-  const { theme, isLightMode } = useAdaptiveTheme();
+  const { theme, isLightMode, saveThemeVariant, selectedVariant } = useThemeSystem();
   const [selectedTheme, setSelectedTheme] = useState<keyof typeof THEME_VARIANTS>('rose');
   const [previewMode, setPreviewMode] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -291,9 +291,14 @@ export default function ThemeSettingsScreen() {
 
   const loadCurrentTheme = async () => {
     try {
-      const savedTheme = await AsyncStorage.getItem('selectedThemeVariant');
-      if (savedTheme && THEME_VARIANTS[savedTheme as keyof typeof THEME_VARIANTS]) {
-        setSelectedTheme(savedTheme as keyof typeof THEME_VARIANTS);
+      // Use selectedVariant from useThemeSystem if available
+      if (selectedVariant) {
+        setSelectedTheme(selectedVariant as keyof typeof THEME_VARIANTS);
+      } else {
+        const savedTheme = await AsyncStorage.getItem('selectedThemeVariant');
+        if (savedTheme && THEME_VARIANTS[savedTheme as keyof typeof THEME_VARIANTS]) {
+          setSelectedTheme(savedTheme as keyof typeof THEME_VARIANTS);
+        }
       }
     } catch (error) {
       console.error('Erro ao carregar tema:', error);
@@ -309,12 +314,21 @@ export default function ThemeSettingsScreen() {
     setIsLoading(true);
     
     try {
-      await AsyncStorage.setItem('selectedThemeVariant', selectedTheme);
+      // Use the saveThemeVariant function from useThemeSystem
+      if (saveThemeVariant) {
+        await saveThemeVariant(selectedTheme, true);
+      } else {
+        await AsyncStorage.setItem('selectedThemeVariant', selectedTheme);
+      }
       
       // Simula aplicação do tema
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 500));
       
-      // Volta para settings ou home
+      // Força refresh da tela
+      setPreviewMode(false);
+      await loadCurrentTheme();
+      
+      // Volta para settings
       router.back();
     } catch (error) {
       console.error('Erro ao aplicar tema:', error);

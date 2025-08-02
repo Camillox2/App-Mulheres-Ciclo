@@ -13,7 +13,7 @@ import {
  Modal,
 } from 'react-native';
 import { router } from 'expo-router';
-import { useAdaptiveTheme } from '../hooks/useAdaptiveTheme';
+import { useThemeSystem } from '../hooks/useThemeSystem';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import {
@@ -23,6 +23,7 @@ import {
  NotificationSettings
 } from '../hooks/notifications';
 import React from 'react';
+import { theme } from '@/constants/theme';
 
 interface UserProfile {
  name: string;
@@ -38,7 +39,7 @@ interface CycleData {
 }
 
 export default function SettingsScreen() {
- const { theme, toggleMode, isLightMode } = useAdaptiveTheme();
+ const { theme, toggleMode, isLightMode } = useThemeSystem();
  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
  const [cycleData, setCycleData] = useState<CycleData | null>(null);
  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings | null>(null);
@@ -363,6 +364,92 @@ export default function SettingsScreen() {
        onPress={() => setShowEditProfile(true)}
       >
        <Text style={styles.editButtonText}>✏️</Text>
+      </TouchableOpacity>
+     </View>
+    </View>
+    
+    {/* Seção de Temas Personalizados */}
+    <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
+     <Text style={[styles.sectionTitle, { color: theme.colors.primary }]}>
+      🎨 Personalização
+     </Text>
+     <View style={styles.themeButtons}>
+      <TouchableOpacity
+       style={[styles.themeButton, { backgroundColor: theme.colors.accent }]}
+       onPress={() => router.push('/theme-settings')}
+      >
+       <Text style={styles.themeButtonIcon}>🌹</Text>
+       <Text style={[styles.themeButtonText, { color: theme.colors.text.primary }]}>
+        Temas Personalizados
+       </Text>
+       <Text style={[styles.themeButtonSubtext, { color: theme.colors.text.secondary }]}>
+        Escolha cores e estilos
+       </Text>
+      </TouchableOpacity>
+      
+      <TouchableOpacity
+       style={[styles.themeButton, { backgroundColor: theme.colors.accent }]}
+       onPress={() => router.push('/auto-theme-settings')}
+      >
+       <Text style={styles.themeButtonIcon}>🌙</Text>
+       <Text style={[styles.themeButtonText, { color: theme.colors.text.primary }]}>
+        Tema Automático
+       </Text>
+       <Text style={[styles.themeButtonSubtext, { color: theme.colors.text.secondary }]}>
+        Muda com seu ciclo
+       </Text>
+      </TouchableOpacity>
+      
+      <TouchableOpacity
+       style={[styles.themeButton, { backgroundColor: theme.colors.accent }]}
+       onPress={() => router.push('/custom-theme-editor')}
+      >
+       <Text style={styles.themeButtonIcon}>🎨</Text>
+       <Text style={[styles.themeButtonText, { color: theme.colors.text.primary }]}>
+        Editor de Cores
+       </Text>
+       <Text style={[styles.themeButtonSubtext, { color: theme.colors.text.secondary }]}>
+        Crie seu próprio tema
+       </Text>
+      </TouchableOpacity>
+      
+      <TouchableOpacity
+       style={[styles.themeButton, { backgroundColor: theme.colors.accent }]}
+       onPress={() => router.push('/theme-gallery')}
+      >
+       <Text style={styles.themeButtonIcon}>🎭</Text>
+       <Text style={[styles.themeButtonText, { color: theme.colors.text.primary }]}>
+        Galeria de Temas
+       </Text>
+       <Text style={[styles.themeButtonSubtext, { color: theme.colors.text.secondary }]}>
+        Seus temas salvos
+       </Text>
+      </TouchableOpacity>
+      
+      <TouchableOpacity
+       style={[styles.themeButton, { backgroundColor: theme.colors.accent }]}
+       onPress={() => router.push('/seasonal-themes')}
+      >
+       <Text style={styles.themeButtonIcon}>🌸</Text>
+       <Text style={[styles.themeButtonText, { color: theme.colors.text.primary }]}>
+        Temas Sazonais
+       </Text>
+       <Text style={[styles.themeButtonSubtext, { color: theme.colors.text.secondary }]}>
+        Primavera, verão, outono, inverno
+       </Text>
+      </TouchableOpacity>
+      
+      <TouchableOpacity
+       style={[styles.themeButton, { backgroundColor: theme.colors.accent }]}
+       onPress={() => router.push('/particle-playground')}
+      >
+       <Text style={styles.themeButtonIcon}>✨</Text>
+       <Text style={[styles.themeButtonText, { color: theme.colors.text.primary }]}>
+        Playground de Partículas
+       </Text>
+       <Text style={[styles.themeButtonSubtext, { color: theme.colors.text.secondary }]}>
+        Experimente efeitos avançados
+       </Text>
       </TouchableOpacity>
      </View>
     </View>
@@ -806,7 +893,7 @@ const styles = StyleSheet.create({
  themeInfo: {
   marginTop: 10,
   padding: 15,
-  backgroundColor: 'rgba(0,0,0,0.05)',
+  backgroundColor: 'rgba(128,128,128,0.1)',
   borderRadius: 12,
  },
  themeInfoText: {
@@ -829,8 +916,30 @@ const styles = StyleSheet.create({
   fontSize: 16,
   fontWeight: '600',
  },
+ // Estilos para botões de tema
+ themeButtons: {
+  gap: 12,
+ },
+ themeButton: {
+  borderRadius: 12,
+  padding: 16,
+  alignItems: 'center',
+ },
+ themeButtonIcon: {
+  fontSize: 28,
+  marginBottom: 8,
+ },
+ themeButtonText: {
+  fontSize: 16,
+  fontWeight: 'bold',
+  marginBottom: 4,
+ },
+ themeButtonSubtext: {
+  fontSize: 12,
+  textAlign: 'center',
+ },
  dangerButton: {
-  backgroundColor: '#FF4444',
+  backgroundColor: '#dc3545',
  },
  dangerButtonText: {
   color: 'white',
@@ -844,7 +953,7 @@ const styles = StyleSheet.create({
  },
  modalOverlay: {
   flex: 1,
-  backgroundColor: 'rgba(0,0,0,0.5)',
+  backgroundColor: 'rgba(0,0,0,0.6)',
   justifyContent: 'center',
   alignItems: 'center',
  },

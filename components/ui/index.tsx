@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import { useAdaptiveTheme } from '../../hooks/useAdaptiveTheme';
+import { useThemeSystem } from '../../hooks/useThemeSystem';
 
 const { width } = Dimensions.get('window');
 
@@ -87,7 +87,7 @@ export const Button: React.FC<ButtonProps> = ({
   style,
   textStyle,
 }) => {
-  const { theme } = useAdaptiveTheme();
+  const { theme } = useThemeSystem();
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = () => {
@@ -236,7 +236,7 @@ export const Card: React.FC<CardProps> = ({
   onPress,
   gradient = false,
 }) => {
-  const { theme } = useAdaptiveTheme();
+  const { theme } = useThemeSystem();
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = () => {
@@ -401,7 +401,7 @@ export const Input: React.FC<InputProps> = ({
   error,
   icon,
 }) => {
-  const { theme } = useAdaptiveTheme();
+  const { theme } = useThemeSystem();
   const focusAnim = useRef(new Animated.Value(0)).current;
   const labelAnim = useRef(new Animated.Value(value ? 1 : 0)).current;
 
@@ -582,7 +582,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
   gradient = true,
   style,
 }) => {
-  const { theme } = useAdaptiveTheme();
+  const { theme } = useThemeSystem();
   const progressAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -657,7 +657,7 @@ export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
   color,
   style,
 }) => {
-  const { theme } = useAdaptiveTheme();
+  const { theme } = useThemeSystem();
   const rotateAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {

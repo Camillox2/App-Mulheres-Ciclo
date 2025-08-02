@@ -15,7 +15,7 @@ import {
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import moment from 'moment'; // <-- CORREÇÃO: Importação adicionada
-import { useAdaptiveTheme } from '../hooks/useAdaptiveTheme';
+import { useThemeSystem } from '../hooks/useThemeSystem';
 import { useAnalyticsData, useRealTimeStats, FilterOptions } from '../hooks/useAnalyticsData';
 
 const { width } = Dimensions.get('window');
@@ -31,7 +31,7 @@ const AnalyticsCard: React.FC<{
   animationDelay?: number;
   fullWidth?: boolean;
 }> = ({ title, children, animationDelay = 0, fullWidth = false }) => {
-  const { theme } = useAdaptiveTheme();
+  const { theme } = useThemeSystem();
   const animatedValue = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -81,7 +81,7 @@ const StatCard: React.FC<{
   trend?: number;
   color?: string;
 }> = ({ title, value, icon, trend, color }) => {
-  const { theme } = useAdaptiveTheme();
+  const { theme } = useThemeSystem();
   const statColor = color || theme.colors.primary;
 
   return (
@@ -132,7 +132,7 @@ const BeautifulTrendChart: React.FC<{
   data: { date: string; symptoms: number; mood: number }[];
   type: 'symptoms' | 'mood';
 }> = ({ data, type }) => {
-  const { theme } = useAdaptiveTheme();
+  const { theme } = useThemeSystem();
   
   const chartData = data.slice(-7).map(item => ({
     ...item,
@@ -317,11 +317,11 @@ const CycleProgressChart: React.FC<{
       </View>
       <View style={styles.cycleLegend}>
         <View style={styles.cycleLegendItem}>
-          <View style={[styles.cycleLegendDot, { backgroundColor: '#2ECC71' }]} />
+          <View style={[styles.cycleLegendDot, { backgroundColor: theme.colors.primary }]} />
           <Text style={[styles.cycleLegendText, { color: theme.colors.text.secondary }]}>Mais Curto</Text>
         </View>
         <View style={styles.cycleLegendItem}>
-          <View style={[styles.cycleLegendDot, { backgroundColor: '#E74C3C' }]} />
+          <View style={[styles.cycleLegendDot, { backgroundColor: theme.colors.accent }]} />
           <Text style={[styles.cycleLegendText, { color: theme.colors.text.secondary }]}>Mais Longo</Text>
         </View>
       </View>
@@ -333,7 +333,7 @@ const CycleProgressChart: React.FC<{
 const MoodList: React.FC<{
   data: { mood: string; count: number; percentage: number; color: string }[];
 }> = ({ data }) => {
-  const { theme } = useAdaptiveTheme();
+  const { theme } = useThemeSystem();
 
   return (
     <View style={styles.moodList}>
@@ -594,7 +594,7 @@ const InsightsContent: React.FC<{ analytics: any; onRefresh: () => void; theme: 
 // ==================== COMPONENTE PRINCIPAL ====================
 
 export default function AnalyticsScreen() {
-  const { theme } = useAdaptiveTheme();
+  const { theme } = useThemeSystem();
   
   const [selectedTab, setSelectedTab] = useState<SelectedTab>('overview');
   const [filterPeriod, setFilterPeriod] = useState<FilterPeriod>('all');

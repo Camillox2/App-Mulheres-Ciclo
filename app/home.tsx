@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useAdaptiveTheme } from '../hooks/useAdaptiveTheme';
+import { useThemeSystem } from '../hooks/useThemeSystem';
 import { ParticleSystem } from '../components/ParticleSystem';
 import { calculateCycleInfo } from '../hooks/cycleCalculations';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -44,7 +44,7 @@ interface CycleInfo {
 }
 
 export default function HomeScreen() {
-  const { theme, isLightMode, phaseProgress } = useAdaptiveTheme();
+  const { theme, isLightMode } = useThemeSystem();
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [cycleData, setCycleData] = useState<CycleData | null>(null);
   const [cycleInfo, setCycleInfo] = useState<CycleInfo | null>(null);
@@ -219,9 +219,9 @@ export default function HomeScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: '#0A0A0F' }]}>
+      <SafeAreaView style={[styles.container, { backgroundColor: theme?.colors.background || '#0A0A0F' }]}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#FF6B9D" />
+          <ActivityIndicator size="large" color={theme?.colors.primary || '#FF6B9D'} />
         </View>
       </SafeAreaView>
     );
@@ -231,7 +231,7 @@ export default function HomeScreen() {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: '#0A0A0F' }]}>
         <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Preparando tema...</Text>
+          <Text style={[styles.loadingText, { color: '#FECDD3' }]}>Preparando tema...</Text>
         </View>
       </SafeAreaView>
     );
@@ -250,6 +250,7 @@ export default function HomeScreen() {
         count={15}
         enabled={true}
       />
+      
 
       <ScrollView 
         style={styles.content} 
@@ -334,8 +335,8 @@ export default function HomeScreen() {
                   </View>
                   
                   <View style={styles.cycleStat}>
-                    <Text style={styles.cycleStatLabel}>Intensidade</Text>
-                    <Text style={styles.cycleStatValue}>{Math.round((phaseProgress || 0.7) * 100)}%</Text>
+                    <Text style={styles.cycleStatLabel}>Próxima Menstruação</Text>
+                    <Text style={styles.cycleStatValue}>{cycleInfo?.daysUntilNextPeriod || 0}</Text>
                   </View>
                 </View>
               </View>
@@ -357,7 +358,7 @@ export default function HomeScreen() {
           <View style={styles.infoCardsGrid}>
             <View style={[styles.infoCard, { backgroundColor: theme.colors.surface }]}>
               <View style={styles.infoCardContent}>
-                <View style={[styles.infoCardIcon, { backgroundColor: '#FFE5F0' }]}>
+                <View style={[styles.infoCardIcon, { backgroundColor: theme.colors.surface }]}>
                   <Text style={styles.infoCardEmoji}>📅</Text>
                 </View>
                 <Text style={[styles.infoCardTitle, { color: theme.colors.text?.primary || theme.colors.primary }]}>
@@ -373,7 +374,7 @@ export default function HomeScreen() {
 
             <View style={[styles.infoCard, { backgroundColor: theme.colors.surface }]}>
               <View style={styles.infoCardContent}>
-                <View style={[styles.infoCardIcon, { backgroundColor: '#FEF2F2' }]}>
+                <View style={[styles.infoCardIcon, { backgroundColor: theme.colors.surface }]}>
                   <Text style={styles.infoCardEmoji}>🎯</Text>
                 </View>
                 <Text style={[styles.infoCardTitle, { color: theme.colors.text?.primary || theme.colors.primary }]}>

@@ -24,7 +24,7 @@ import {
 } from 'recharts';
 import type { LabelProps, TooltipContentProps } from 'recharts';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useAdaptiveTheme } from '../../hooks/useAdaptiveTheme';
+import { useThemeSystem } from '../../hooks/useThemeSystem';
 import { DESIGN_SYSTEM } from '../../constants/desingSystem';
 
 const { width } = Dimensions.get('window');
@@ -78,7 +78,7 @@ export const AnalyticsCard: React.FC<AnalyticsCardProps> = ({
   style,
   animationDelay = 0,
 }) => {
-  const { theme } = useAdaptiveTheme();
+  const { theme } = useThemeSystem();
   const animatedValue = useRef(new Animated.Value(0)).current;
   const scaleValue = useRef(new Animated.Value(1)).current;
 
@@ -162,7 +162,7 @@ export const StatCard: React.FC<StatCardProps> = ({
   color,
   onPress,
 }) => {
-  const { theme } = useAdaptiveTheme();
+  const { theme } = useThemeSystem();
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -297,7 +297,7 @@ const CustomTooltip = ({ active, payload, label, theme }: TooltipContentProps<an
 };
 
 export const MoodChart: React.FC<MoodChartProps> = ({ data, interactive = true }) => {
-  const { theme } = useAdaptiveTheme();
+  const { theme } = useThemeSystem();
   const [selectedMood, setSelectedMood] = useState<string | null>(null);
 
   if (!theme || data.length === 0) {
@@ -373,7 +373,7 @@ export const MoodChart: React.FC<MoodChartProps> = ({ data, interactive = true }
 };
 
 export const TrendChart: React.FC<TrendChartProps> = ({ data, type }) => {
-  const { theme } = useAdaptiveTheme();
+  const { theme } = useThemeSystem();
 
   if (!theme || data.length === 0) {
     return (
@@ -435,7 +435,7 @@ export const TrendChart: React.FC<TrendChartProps> = ({ data, type }) => {
 };
 
 export const CycleComparison: React.FC<CycleComparisonProps> = ({ data }) => {
-  const { theme } = useAdaptiveTheme();
+  const { theme } = useThemeSystem();
 
   if (!theme || data.length === 0) {
     return (
@@ -490,7 +490,7 @@ export const CycleComparison: React.FC<CycleComparisonProps> = ({ data }) => {
 // ==================== COMPONENTES ESPECIAIS ====================
 
 export const InsightCard: React.FC<InsightCardProps> = ({ insights, onRefresh }) => {
-  const { theme } = useAdaptiveTheme();
+  const { theme } = useThemeSystem();
   const [currentInsight, setCurrentInsight] = useState(0);
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
@@ -567,7 +567,7 @@ export const InsightCard: React.FC<InsightCardProps> = ({ insights, onRefresh })
 };
 
 export const QuickStatsOverview: React.FC<{ analytics: any }> = ({ analytics }) => {
-  const { theme } = useAdaptiveTheme();
+  const { theme } = useThemeSystem();
 
   if (!theme || !analytics) return null;
 

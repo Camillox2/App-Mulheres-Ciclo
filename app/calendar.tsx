@@ -13,7 +13,7 @@ import {
   Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useAdaptiveTheme } from '../hooks/useAdaptiveTheme';
+import { useThemeSystem } from '../hooks/useThemeSystem';
 import { getDayInfo, DayInfo } from '../hooks/cycleCalculations';
 import { PHASE_INFO } from '../constants/appConstants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -130,7 +130,7 @@ const BeautifulCalendarDay = React.memo<{
 });
 
 export default function BeautifulCalendarScreen() {
-  const { theme, isDarkMode } = useAdaptiveTheme();
+  const { theme, isDarkMode } = useThemeSystem();
   const [currentMonth, setCurrentMonth] = useState(moment());
   const [cycleData, setCycleData] = useState<CycleData | null>(null);
   const [selectedDay, setSelectedDay] = useState<DayInfo | null>(null);
@@ -236,7 +236,6 @@ export default function BeautifulCalendarScreen() {
                 {Object.entries(PHASE_INFO).map(([phase, info]) => (
                   <View key={phase} style={styles.legendItem}>
                     <LinearGradient colors={BEAUTIFUL_COLORS[phase as PhaseType].gradient as [string, string, ...string[]]} style={styles.legendDot} />
-                    <Image source={logoFour} style={styles.legendLogo} />
                     <Text style={[styles.legendText, { color: theme.colors.text.secondary }]}>{info.name}</Text>
                   </View>
                 ))}
@@ -290,8 +289,7 @@ const styles = StyleSheet.create({
   legend: { borderRadius: 16, paddingVertical: 10, marginVertical: 16, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 3 },
   legendContent: { paddingHorizontal: 16, alignItems: 'center' },
   legendItem: { alignItems: 'center', marginHorizontal: 12 },
-  legendDot: { width: 20, height: 20, borderRadius: 10, marginBottom: 6 },
-  legendLogo: { width: 18, height: 18, marginBottom: 6 },
+  legendDot: { width: 20, height: 20, borderRadius: 10, marginBottom: 8 }, // Aumentado marginBottom de 6 para 8
   legendText: { fontSize: 11, fontWeight: '600' },
   weekHeader: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 12, paddingHorizontal: 3 },
   weekDay: { alignItems: 'center', paddingVertical: 8 },

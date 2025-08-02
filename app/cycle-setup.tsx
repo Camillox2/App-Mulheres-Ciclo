@@ -1,5 +1,5 @@
 // app/cycle-setup.tsx
-import { useState } from 'react';
+
 import {
   View,
   Text,
@@ -16,7 +16,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import moment from 'moment';
 import { scheduleAllNotifications } from '../hooks/notifications';
-import React from 'react';
+import React, { useState } from 'react';
 
 export default function CycleSetupScreen() {
   const [lastPeriodDate, setLastPeriodDate] = useState(new Date());
@@ -89,7 +89,12 @@ export default function CycleSetupScreen() {
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       >
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          style={styles.scrollView} 
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={styles.scrollViewContent}
+        >
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.title}>Configuração do Ciclo 📅</Text>
@@ -121,27 +126,25 @@ export default function CycleSetupScreen() {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Duração média do seu ciclo</Text>
               <Text style={styles.currentValue}>{averageCycleLength} dias</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.optionsScroll}>
-                <View style={styles.optionsContainer}>
-                  {cycleLengthOptions.map((days) => (
-                    <TouchableOpacity
-                      key={days}
-                      style={[
-                        styles.optionButton,
-                        { backgroundColor: averageCycleLength === days ? 'white' : 'rgba(255,255,255,0.2)' }
-                      ]}
-                      onPress={() => setAverageCycleLength(days)}
-                    >
-                      <Text style={[
-                        styles.optionText,
-                        { color: averageCycleLength === days ? '#FF6B9D' : 'white' }
-                      ]}>
-                        {days}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </ScrollView>
+              <View style={styles.optionsContainer}>
+                {cycleLengthOptions.map((days) => (
+                  <TouchableOpacity
+                    key={days}
+                    style={[
+                      styles.optionButton,
+                      { backgroundColor: averageCycleLength === days ? 'white' : 'rgba(255,255,255,0.2)' }
+                    ]}
+                    onPress={() => setAverageCycleLength(days)}
+                  >
+                    <Text style={[
+                      styles.optionText,
+                      { color: averageCycleLength === days ? '#FF6B9D' : 'white' }
+                    ]}>
+                      {days}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
               <Text style={styles.hint}>
                 Intervalo entre o primeiro dia de uma menstruação e o primeiro dia da próxima
               </Text>
@@ -252,6 +255,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 30,
     zIndex: 10,
   },
+  scrollViewContent: {
+    paddingBottom: 20,
+  },
   header: {
     alignItems: 'center',
     marginTop: 40,
@@ -308,9 +314,6 @@ const styles = StyleSheet.create({
   },
   dateButtonIcon: {
     fontSize: 20,
-  },
-  optionsScroll: {
-    marginBottom: 10,
   },
   optionsContainer: {
     flexDirection: 'row',

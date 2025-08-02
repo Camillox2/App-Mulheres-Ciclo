@@ -12,7 +12,7 @@ import {
   Pressable,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useAdaptiveTheme } from '../hooks/useAdaptiveTheme';
+import { useThemeSystem } from '../hooks/useThemeSystem';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -30,7 +30,7 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
   isMenuOpen,
   currentScreen = 'Home',
 }) => {
-  const { theme, isDarkMode } = useAdaptiveTheme();
+  const { theme, isDarkMode } = useThemeSystem();
   const insets = useSafeAreaInsets();
   const menuIconRotation = useRef(new Animated.Value(0)).current;
   const logoScale = useRef(new Animated.Value(1)).current;
@@ -111,7 +111,7 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     const emojiMap: Record<PhaseType, string> = {
       menstrual: '🌸',
       postMenstrual: '🌱',
-      fertile: '🔥',
+      fertile: '�',
       ovulation: '⭐',
       preMenstrual: '💜',
     };

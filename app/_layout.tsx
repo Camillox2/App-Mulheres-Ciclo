@@ -18,7 +18,7 @@ import * as SplashScreen from 'expo-splash-screen';
 
 import { GlobalHeader } from '../components/GlobalHeader';
 import { SidebarDrawer } from '../components/Sidebar';
-import { useAdaptiveTheme } from '../hooks/useAdaptiveTheme';
+import { useThemeSystem } from '../hooks/useThemeSystem';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -29,7 +29,20 @@ const SWIPE_VELOCITY_THRESHOLD = 800;
 export default function RootLayout() {
   const [appReady, setAppReady] = useState(false);
   const segments = useSegments();
-  const { theme, isDarkMode } = useAdaptiveTheme();
+  
+  // SEMPRE chama os hooks na mesma ordem
+  const { theme, isDarkMode } = useThemeSystem();
+  
+  // Log para debug do tema no layout
+  useEffect(() => {
+    if (theme) {
+      console.log('🏠 Layout - Tema aplicado:', {
+        primary: theme.colors.primary,
+        background: theme.colors.background
+      });
+    }
+  }, [theme]);
+  
   const dimensions = useWindowDimensions();
   const DRAWER_WIDTH = dimensions.width * DRAWER_WIDTH_PERCENT;
 
@@ -70,39 +83,81 @@ export default function RootLayout() {
 
   const closeDrawer = useCallback((callback?: () => void) => {
     'worklet';
-    translateX.value = withSpring(-DRAWER_WIDTH, {
-      damping: 20,
-      stiffness: 300,
-      mass: 0.3,
-      velocity: 0,
-    }, (isFinished) => {
-      if (isFinished) {
-        runOnJS(setDrawerState)(false);
-        if (callback) {
-          runOnJS(callback)();
+    
+    // Force reset se necessário
+    if (translateX.value > -DRAWER_WIDTH) {
+      translateX.value = withSpring(-DRAWER_WIDTH, {
+        damping: 20,
+        stiffness: 300,
+        mass: 0.3,
+        velocity: 0,
+      }, (isFinished) => {
+        if (isFinished) {
+          runOnJS(setDrawerState)(false);
+          if (callback) {
+            runOnJS(callback)();
+          }
         }
+      });
+    } else {
+      // Já está fechado, só atualiza o estado
+      runOnJS(setDrawerState)(false);
+      if (callback) {
+        runOnJS(callback)();
       }
-    });
+    }
   }, [translateX, DRAWER_WIDTH, setDrawerState]);
 
-  // Gesture para abrir/fechar o drawer
+  // Gesture otimizado para swipe da esquerda - VERSÃO MELHORADA
   const panGesture = Gesture.Pan()
-    .activeOffsetX([-SWIPE_THRESHOLD, SWIPE_THRESHOLD])
-    .failOffsetY([-5, 5])
-    .onStart(() => {
+    .minDistance(1) // Muito sensível
+    .maxPointers(1)
+    .onStart((event) => {
       gestureX.value = translateX.value;
+      console.log('🖐️ Gesto iniciado - X:', event.x, 'Y:', event.y, 'DrawerPos:', translateX.value);
     })
     .onUpdate((event) => {
-      const newX = gestureX.value + event.translationX;
-      translateX.value = Math.max(-DRAWER_WIDTH, Math.min(0, newX));
+      // Só permite o gesto se começar próximo à borda esquerda
+      if (event.absoluteX < 100 || translateX.value > -DRAWER_WIDTH + 50) {
+        const newX = gestureX.value + event.translationX;
+        
+        // Para abrir: movimento para direita
+        if (event.translationX > 0) {
+          translateX.value = Math.max(-DRAWER_WIDTH, Math.min(0, newX));
+        }
+        // Para fechar: movimento para esquerda quando já está aberto
+        else if (translateX.value > -DRAWER_WIDTH + 10) {
+          translateX.value = Math.max(-DRAWER_WIDTH, Math.min(0, newX));
+        }
+      }
     })
     .onEnd((event) => {
       const velocity = event.velocityX;
       const currentPosition = translateX.value;
       
-      if (velocity > SWIPE_VELOCITY_THRESHOLD || (velocity > -100 && currentPosition > -DRAWER_WIDTH / 2)) {
+      console.log('🏁 Gesto finalizado:', {
+        velocity,
+        currentPosition,
+        threshold: -DRAWER_WIDTH / 2,
+        absoluteX: event.absoluteX
+      });
+      
+      // Decisão baseada em velocidade e posição
+      if (velocity > 500 && velocity > 0) {
+        // Swipe rápido para direita = abrir
+        console.log('➡️ Swipe rápido - Abrindo');
+        openDrawer();
+      } else if (velocity < -500 && velocity < 0) {
+        // Swipe rápido para esquerda = fechar
+        console.log('⬅️ Swipe rápido - Fechando');
+        closeDrawer();
+      } else if (currentPosition > -DRAWER_WIDTH / 2) {
+        // Mais da metade aberto = abrir
+        console.log('📖 Mais da metade - Abrindo');
         openDrawer();
       } else {
+        // Caso contrário = fechar
+        console.log('📕 Menos da metade - Fechando');
         closeDrawer();
       }
     });
@@ -112,15 +167,18 @@ export default function RootLayout() {
     transform: [{ translateX: translateX.value }],
   }));
 
-  const animatedOverlayStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(
-      translateX.value,
-      [-DRAWER_WIDTH, 0],
-      [0, 1],
-      Extrapolate.CLAMP
-    ),
-    pointerEvents: translateX.value > -DRAWER_WIDTH + 10 ? 'auto' : 'none',
-  }));
+  const animatedOverlayStyle = useAnimatedStyle(() => {
+    const isVisible = translateX.value > -DRAWER_WIDTH + 50;
+    return {
+      opacity: interpolate(
+        translateX.value,
+        [-DRAWER_WIDTH, 0],
+        [0, 0.6],
+        Extrapolate.CLAMP
+      ),
+      pointerEvents: isVisible ? 'auto' : 'none',
+    };
+  });
 
   const animatedContentStyle = useAnimatedStyle(() => ({
     transform: [{
@@ -135,46 +193,72 @@ export default function RootLayout() {
 
   const screensWithoutHeader = ['index', 'welcome', 'profile-setup', 'cycle-setup'];
   const screensWithoutSidebar = ['index', 'welcome', 'profile-setup', 'cycle-setup'];
+  const screensWithoutGesture = []; // Removido restrições para permitir gesto em todas as telas
   const currentScreen = segments[segments.length - 1] || 'index';
   const shouldShowHeader = !screensWithoutHeader.includes(currentScreen);
   const shouldShowSidebar = !screensWithoutSidebar.includes(currentScreen);
+  const shouldShowGesture = shouldShowSidebar; // Simplificado
 
   useEffect(() => {
     // Fecha o drawer quando muda de tela ou quando está em tela sem sidebar
     if (isDrawerOpen && (!shouldShowSidebar || currentScreen !== segments[segments.length - 1])) {
       closeDrawer();
     }
-  }, [currentScreen, shouldShowSidebar, isDrawerOpen, segments]);
+    
+    // Reset da flag de animação quando muda de tela
+    isAnimatingRef.current = false;
+  }, [currentScreen, shouldShowSidebar, isDrawerOpen, segments, closeDrawer]);
 
   if (!appReady || !theme) {
     return null;
   }
 
-  // Cria gesture condicionalmente
-  const conditionalPanGesture = shouldShowSidebar ? panGesture : Gesture.Pan().enabled(false);
-
   return (
     <GestureHandlerRootView style={[styles.container, { backgroundColor: theme.colors.background }]}> 
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
       
+      {/* Gesture detector - ÁREA EXPANDIDA para melhor detecção */}
+      {shouldShowSidebar && (
+        <GestureDetector gesture={panGesture}>
+          <Animated.View 
+            style={[
+              styles.gestureArea,
+              { 
+                left: 0,
+                top: shouldShowHeader ? 80 : 0,
+                width: isDrawerOpen ? '100%' : 80,
+                height: '100%',
+                position: 'absolute',
+                zIndex: isDrawerOpen ? 0 : 10,
+                backgroundColor: 'transparent',
+              }
+            ]} 
+          />
+        </GestureDetector>
+      )}
+      
       {/* Sidebar - só renderiza se permitido */}
       {shouldShowSidebar && (
         <>
+          {/* Overlay - com zIndex menor que sidebar */}
+          <Animated.View style={[styles.overlay, animatedOverlayStyle]}>
+            <Pressable 
+              style={StyleSheet.absoluteFill} 
+              onPress={() => closeDrawer()}
+              hitSlop={{ top: 0, bottom: 0, left: 0, right: 0 }}
+            />
+          </Animated.View>
+          
           <SidebarDrawer
             animatedStyle={animatedSidebarStyle}
             onClose={closeDrawer}
             currentScreen={currentScreen}
           />
-          {/* Overlay */}
-          <Animated.View style={[styles.overlay, animatedOverlayStyle]} pointerEvents="box-none">
-            <Pressable style={StyleSheet.absoluteFill} onPress={() => closeDrawer()} />
-          </Animated.View>
         </>
       )}
       
-      {/* Conteúdo principal com gesture condicional */}
-      <GestureDetector gesture={conditionalPanGesture}>
-        <Animated.View style={[styles.contentContainer, shouldShowSidebar ? animatedContentStyle : {}]}>
+      {/* Conteúdo principal SEM gesture detector */}
+      <Animated.View style={[styles.contentContainer, shouldShowSidebar ? animatedContentStyle : {}]}>
           {shouldShowHeader && (
             <GlobalHeader
               onMenuPress={() => {
@@ -205,7 +289,6 @@ export default function RootLayout() {
             </Stack>
           </View>
         </Animated.View>
-      </GestureDetector>
     </GestureHandlerRootView>
   );
 }
@@ -222,7 +305,10 @@ const styles = StyleSheet.create({
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    zIndex: 100,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    zIndex: 30, // Menor que sidebar (50) mas maior que gesture (1)
+  },
+  gestureArea: {
+    backgroundColor: 'transparent',
   },
 });

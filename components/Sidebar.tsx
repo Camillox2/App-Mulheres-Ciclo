@@ -19,7 +19,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { useAdaptiveTheme } from '../hooks/useAdaptiveTheme';
+import { useThemeSystem } from '../hooks/useThemeSystem';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import moment from 'moment';
 import { BlurView } from 'expo-blur';
@@ -47,28 +47,36 @@ const menuItems = [
   { key: 'settings', icon: '⚙️', label: 'Configurações', screen: 'settings' },
 ];
 
-// Componente MenuItem otimizado
+// Componente MenuItem refatorado com melhor responsividade
 const MenuItem = memo(({ item, currentScreen, onPress }: any) => {
-  const { theme } = useAdaptiveTheme();
+  const { theme } = useThemeSystem();
   const isActive = currentScreen === item.screen;
   const [isPressed, setIsPressed] = useState(false);
+
+  const handlePress = useCallback(() => {
+    console.log('MenuItem pressed:', item.screen);
+    onPress(item.screen);
+  }, [item.screen, onPress]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: withSpring(isPressed ? 0.95 : 1, { damping: 15 }) }],
     backgroundColor: withTiming(
-      isActive ? `${theme?.colors.primary}15` : 'transparent',
+      isActive ? `${theme?.colors.primary}20` : 'transparent',
       { duration: 200 }
     ),
   }));
+
+  if (!theme) return null;
 
   return (
     <Animated.View style={[styles.menuItemContainer, animatedStyle]}>
       <TouchableOpacity
         style={styles.menuItem}
-        onPress={() => onPress(item.screen)}
+        onPress={handlePress}
         onPressIn={() => setIsPressed(true)}
         onPressOut={() => setIsPressed(false)}
-        activeOpacity={1}
+        activeOpacity={0.7}
+        hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
       >
         <View style={styles.menuItemContent}>
           <Text style={styles.menuIcon}>{item.icon}</Text>
@@ -76,7 +84,7 @@ const MenuItem = memo(({ item, currentScreen, onPress }: any) => {
             style={[
               styles.menuLabel,
               {
-                color: isActive ? theme?.colors.primary : theme?.colors.text.secondary,
+                color: isActive ? theme.colors.primary : theme.colors.text.secondary,
                 fontWeight: isActive ? '700' : '500',
               },
             ]}
@@ -84,8 +92,8 @@ const MenuItem = memo(({ item, currentScreen, onPress }: any) => {
             {item.label}
           </Text>
         </View>
-        {isActive && theme && (
-          <Animated.View
+        {isActive && (
+          <View
             style={[
               styles.activeIndicator,
               { backgroundColor: theme.colors.primary },
@@ -102,7 +110,7 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
   onClose,
   currentScreen,
 }) => {
-  const { theme, toggleMode, isLightMode } = useAdaptiveTheme();
+  const { theme, toggleMode, isLightMode } = useThemeSystem();
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
   useEffect(() => {
@@ -118,19 +126,34 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
   }, []);
 
   const handleNavigation = useCallback((screen: string) => {
-    // Fecha a sidebar imediatamente ao clicar
+    console.log('handleNavigation called with screen:', screen);
+    console.log('currentScreen:', currentScreen);
+    
+    // Fecha a sidebar primeiro
+    onClose();
+    
+    // Se já está na tela, não navega
     if (currentScreen === screen) {
-      onClose();
+      console.log('Already on screen:', screen);
       return;
     }
     
-    // Navega imediatamente e fecha a sidebar
-    router.push(`/${screen}` as any);
-    onClose();
+    // Navega para a nova tela
+    console.log('Navigating to:', screen);
+    try {
+      router.push(`/${screen}` as any);
+    } catch (error) {
+      console.error('Navigation error:', error);
+    }
   }, [currentScreen, onClose]);
 
   const handleThemeToggle = useCallback(() => {
-    toggleMode();
+    console.log('Theme toggle pressed');
+    try {
+      toggleMode();
+    } catch (error) {
+      console.error('Theme toggle error:', error);
+    }
   }, [toggleMode]);
 
   if (!theme) return null;
@@ -142,6 +165,7 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
         animatedStyle,
         { backgroundColor: theme.colors.surface }
       ]}
+      pointerEvents="box-none" // Permite que os filhos recebam toques
     >
       {/* Blur background para iOS */}
       {Platform.OS === 'ios' && (
@@ -161,11 +185,14 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
         style={styles.drawerContainer}
         start={{ x: 0, y: 0 }}
         end={{ x: 0.8, y: 1 }}
+        pointerEvents="box-none" // Permite que os filhos recebam toques
       >
         <ScrollView
           style={styles.content}
           showsVerticalScrollIndicator={false}
           bounces={false}
+          scrollEnabled={true}
+          keyboardShouldPersistTaps="handled"
         >
           {/* Profile Section com animação */}
           <Animated.View style={styles.profileSection}>
@@ -244,6 +271,7 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
               style={styles.themeToggle}
               onPress={handleThemeToggle}
               activeOpacity={0.7}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
               <View style={styles.menuItemContent}>
                 <Text style={styles.menuIcon}>
@@ -283,8 +311,8 @@ const styles = StyleSheet.create({
     left: 0,
     width: DRAWER_WIDTH,
     height: '100%',
-    zIndex: 999,
-    elevation: 24,
+    zIndex: 50, // Reduzido de 999 para 50
+    elevation: 8, // Reduzido de 24 para 8
     shadowColor: '#000',
     shadowOffset: { width: 2, height: 0 },
     shadowOpacity: 0.25,
@@ -366,19 +394,21 @@ const styles = StyleSheet.create({
   },
   menuItemContainer: {
     borderRadius: 12,
-    marginBottom: 4,
+    marginBottom: 6, // Aumentado de 4 para 6
     overflow: 'hidden',
   },
   menuItem: {
     borderRadius: 12,
     position: 'relative',
     overflow: 'hidden',
+    minHeight: 56, // Altura mínima para facilitar toque
   },
   menuItemContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 16,
+    paddingVertical: 18, // Aumentado de 16 para 18
     paddingHorizontal: 16,
+    minHeight: 56, // Garante área de toque adequada
   },
   menuIcon: {
     fontSize: 24,
@@ -409,6 +439,7 @@ const styles = StyleSheet.create({
   themeToggle: {
     borderRadius: 12,
     overflow: 'hidden',
+    minHeight: 56, // Altura mínima para facilitar toque
   },
   footer: {
     paddingHorizontal: 24,

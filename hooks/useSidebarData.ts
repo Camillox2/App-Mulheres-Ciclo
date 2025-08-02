@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import moment from 'moment';
-import { useAdaptiveTheme } from './useAdaptiveTheme';
+import { useThemeSystem } from './useThemeSystem';
 
 interface UserProfile {
   name: string;
@@ -16,7 +16,7 @@ interface CycleData {
 }
 
 export const useSidebarData = () => {
-  const { theme } = useAdaptiveTheme();
+  const { theme } = useThemeSystem();
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [cycleData, setCycleData] = useState<CycleData | null>(null);
   

@@ -1,8 +1,9 @@
-// hooks/useThemeSystem.ts - SISTEMA DE TEMAS PERSONALIZADOS
+// hooks/useThemeSystem.ts - SISTEMA DE TEMAS PERSONALIZADOS INTEGRADO
 import { useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import moment from 'moment';
 import { CyclePhase } from './useAdaptiveTheme';
+import { useCycleBasedTheme } from './useCycleBasedTheme';
 
 export type ThemeVariant = 'rose' | 'lavender' | 'sunset' | 'ocean' | 'forest' | 'cherry';
 export type ThemeMode = 'light' | 'dark';
@@ -745,12 +746,15 @@ const THEME_VARIANTS = {
   },
 };
 
-// HOOK PRINCIPAL
+// HOOK PRINCIPAL INTEGRADO
 export const useThemeSystem = () => {
   const [selectedVariant, setSelectedVariant] = useState<ThemeVariant>('rose');
   const [mode, setMode] = useState<ThemeMode>('dark');
   const [currentPhase, setCurrentPhase] = useState<CyclePhase>('menstrual');
   const [intensity, setIntensity] = useState(0.8);
+  
+  // INTEGRAÇÃO COM SISTEMA AUTOMÁTICO
+  const cycleTheme = useCycleBasedTheme();
 
   // Carrega configurações salvas
   useEffect(() => {
@@ -859,14 +863,22 @@ export const useThemeSystem = () => {
   };
 
   // Salva variante selecionada
-  const saveThemeVariant = useCallback(async (variant: ThemeVariant) => {
+  const saveThemeVariant = useCallback(async (variant: ThemeVariant, isManual = true) => {
     try {
       await AsyncStorage.setItem('selectedThemeVariant', variant);
       setSelectedVariant(variant);
+      
+      // Força atualização da fase atual para aplicar o novo tema
+      await updateCurrentPhase();
+      
+      // Se é mudança manual, marca override no sistema automático
+      if (isManual && cycleTheme) {
+        await cycleTheme.setManualOverride(true);
+      }
     } catch (error) {
       console.error('Erro ao salvar variante:', error);
     }
-  }, []);
+  }, [cycleTheme]);
 
   // Alterna modo claro/escuro
   const toggleMode = useCallback(async () => {
@@ -939,5 +951,15 @@ export const useThemeSystem = () => {
     // Flags convenientes
     isLightMode: mode === 'light',
     isDarkMode: mode === 'dark',
+    
+    // SISTEMA AUTOMÁTICO INTEGRADO
+    cycleTheme: cycleTheme ? {
+      ...cycleTheme,
+      isEnabled: cycleTheme.settings.autoThemeEnabled,
+      currentAutoTheme: cycleTheme.getThemeForPhase(currentPhase),
+      toggleAutoTheme: cycleTheme.toggleAutoTheme,
+      updatePhaseMapping: cycleTheme.updatePhaseThemeMapping,
+      resetDefaults: cycleTheme.resetToDefaults,
+    } : null,
   };
 };

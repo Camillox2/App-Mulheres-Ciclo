@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import { useAdaptiveTheme } from '../hooks/useAdaptiveTheme';
+import { useThemeSystem } from '../hooks/useThemeSystem';
 import { DayInfo } from '../hooks/cycleCalculations';
 import { PHASE_INFO } from '../constants/appConstants';
 import moment from 'moment';
@@ -63,7 +63,7 @@ const ImprovedCalendarModal: React.FC<ImprovedCalendarModalProps> = ({
   onClose,
   dayInfo,
 }) => {
-  const { theme } = useAdaptiveTheme();
+  const { theme } = useThemeSystem();
   const slideAnim = useRef(new Animated.Value(height)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
@@ -125,19 +125,20 @@ const ImprovedCalendarModal: React.FC<ImprovedCalendarModalProps> = ({
   }, []);
 
   const calculateDynamicHeight = useCallback(() => {
-    const headerHeight = 120; // Header fixo
+    const headerHeight = 80; // Header reduzido
     const buttonHeight = 60; // Botão de fechar
     const padding = 40; // Padding total
     const baseContentHeight = 200; // Conteúdo mínimo
     
     const totalNeededHeight = headerHeight + buttonHeight + padding + Math.max(baseContentHeight, contentHeight);
     
-    // Limita entre 40% e 85% da tela
+    // Limita entre 40% e 80% da tela (reduzido de 85% para 80%)
     const minHeight = height * 0.4;
-    const calculatedHeight = Math.min(maxModalHeight, Math.max(minHeight, totalNeededHeight));
+    const maxHeight = height * 0.8;
+    const calculatedHeight = Math.min(maxHeight, Math.max(minHeight, totalNeededHeight));
     
     return calculatedHeight;
-  }, [contentHeight, maxModalHeight]);
+  }, [contentHeight, height]);
 
   if (!dayInfo || !theme) return null;
 
@@ -227,7 +228,6 @@ const ImprovedCalendarModal: React.FC<ImprovedCalendarModalProps> = ({
 
             {/* Conteúdo do header */}
             <View style={styles.headerContent}>
-              <Image source={logoFour} style={styles.modalLogo} />
               <Text style={styles.modalDate}>
                 {dayInfo.date.format('DD')}
               </Text>
@@ -357,7 +357,7 @@ const ImprovedCalendarModal: React.FC<ImprovedCalendarModalProps> = ({
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'flex-end',
   },
   modalBackground: {
@@ -375,10 +375,10 @@ const styles = StyleSheet.create({
   modalHeader: {
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
-    paddingVertical: 20,
+    paddingVertical: 16, // Reduzido de 20 para 16
     paddingHorizontal: 24,
     position: 'relative',
-    minHeight: 120,
+    minHeight: 80, // Reduzido drasticamente de 120 para 80
   },
   closeButton: {
     position: 'absolute',
@@ -404,39 +404,34 @@ const styles = StyleSheet.create({
   },
   headerContent: {
     alignItems: 'center',
-    paddingTop: 10,
-  },
-  modalLogo: {
-    width: 48,
-    height: 48,
-    marginBottom: 12,
+    paddingTop: 5, // Reduzido de 10 para 5
   },
   modalDate: {
-    fontSize: 42,
+    fontSize: 32, // Reduzido de 42 para 32
     fontWeight: '900',
     color: 'white',
-    marginBottom: 6,
+    marginBottom: 4, // Reduzido de 6 para 4
     textShadowColor: 'rgba(0,0,0,0.3)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
   },
   modalDayName: {
-    fontSize: 16,
+    fontSize: 14, // Reduzido de 16 para 14
     color: 'rgba(255, 255, 255, 0.95)',
     fontWeight: '600',
     textTransform: 'capitalize',
-    marginBottom: 12,
+    marginBottom: 8, // Reduzido de 12 para 8
   },
   phaseBadge: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingHorizontal: 12, // Reduzido de 16 para 12
+    paddingVertical: 6, // Reduzido de 8 para 6
+    borderRadius: 16, // Reduzido de 20 para 16
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.3)',
   },
   phaseBadgeText: {
     color: 'white',
-    fontSize: 14,
+    fontSize: 12, // Reduzido de 14 para 12
     fontWeight: '700',
   },
   scrollView: {
