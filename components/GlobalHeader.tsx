@@ -36,6 +36,15 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
   const logoScale = useRef(new Animated.Value(1)).current;
   const phaseIndicatorScale = useRef(new Animated.Value(1)).current;
   const [isButtonPressed, setIsButtonPressed] = useState(false);
+  const [forceUpdate, setForceUpdate] = useState(0);
+
+  // Força atualização quando o tema muda
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setForceUpdate(prev => prev + 1);
+    }, 100);
+    return () => clearInterval(interval);
+  }, []);
 
   // Animação do ícone do menu
   useEffect(() => {
@@ -88,7 +97,7 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     return () => phaseAnimation.stop();
   }, [theme?.phase]);
 
-  // StatusBar
+  // StatusBar - Força atualização do tema
   useEffect(() => {
     if (theme) {
       StatusBar.setBarStyle(isDarkMode ? 'light-content' : 'dark-content', true);
@@ -96,7 +105,16 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
         StatusBar.setBackgroundColor(theme.colors.background, true);
       }
     }
-  }, [isDarkMode, theme]);
+  }, [isDarkMode, theme, theme?.colors.background, theme?.colors.primary]);
+
+  // Log para debug
+  useEffect(() => {
+    console.log('🎨 GlobalHeader - Tema atualizado:', {
+      primary: theme?.colors.primary,
+      background: theme?.colors.background,
+      phase: theme?.phase
+    });
+  }, [theme]);
 
   if (!theme) return null;
 
@@ -148,14 +166,32 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     setTimeout(() => setIsButtonPressed(false), 300);
   };
 
+  // Cores especiais para modo claro
+  const getLightModeColors = () => {
+    if (!isDarkMode) {
+      return {
+        headerGradient: ['#FFF9FC', '#FFE8F0', '#FFEEF3'] as [string, string, string],
+        surfaceOverlay: '#FFFFFF',
+        accentRose: '#FF6B9D',
+        softRose: '#FFB4D6',
+        backgroundRose: '#FFF5F8',
+      };
+    }
+    return {
+      headerGradient: [theme.colors.surface, `${theme.colors.surface}F8`, `${theme.colors.surface}E5`] as [string, string, string],
+      surfaceOverlay: theme.colors.surface,
+      accentRose: theme.colors.primary,
+      softRose: theme.colors.secondary,
+      backgroundRose: theme.colors.background,
+    };
+  };
+
+  const lightColors = getLightModeColors();
+
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: isDarkMode ? theme.colors.background : lightColors.backgroundRose }]}>
       <LinearGradient
-        colors={[
-          theme.colors.surface,
-          `${theme.colors.surface}F8`,
-          `${theme.colors.surface}E5`,
-        ]}
+        colors={lightColors.headerGradient}
         style={styles.headerContainer}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
@@ -166,9 +202,9 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
             style={[
               styles.phaseBar,
               {
-                backgroundColor: theme.colors.primary,
+                backgroundColor: lightColors.accentRose,
                 width: `${(theme.intensity || 0.7) * 100}%`,
-                shadowColor: theme.colors.primary,
+                shadowColor: lightColors.accentRose,
                 shadowOpacity: 0.3,
                 shadowRadius: 4,
                 elevation: 2,
@@ -185,9 +221,9 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
                 styles.menuButton,
                 { 
                   backgroundColor: pressed || isButtonPressed ? 
-                    theme.colors.primary : 
-                    `${theme.colors.primary}20`,
-                  borderColor: `${theme.colors.primary}30`,
+                    lightColors.accentRose : 
+                    `${lightColors.accentRose}20`,
+                  borderColor: `${lightColors.accentRose}30`,
                   transform: [{ scale: pressed ? 0.9 : 1 }],
                 },
               ]}
@@ -204,18 +240,18 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
                   <Ionicons 
                     name="close" 
                     size={22} 
-                    color={isButtonPressed ? 'white' : theme.colors.primary} 
+                    color={isButtonPressed ? 'white' : lightColors.accentRose} 
                   />
                 ) : (
                   <>
                     <View style={[styles.menuLine, { 
-                      backgroundColor: isButtonPressed ? 'white' : theme.colors.primary 
+                      backgroundColor: isButtonPressed ? 'white' : lightColors.accentRose 
                     }]} />
                     <View style={[styles.menuLine, { 
-                      backgroundColor: isButtonPressed ? 'white' : theme.colors.primary 
+                      backgroundColor: isButtonPressed ? 'white' : lightColors.accentRose 
                     }]} />
                     <View style={[styles.menuLine, { 
-                      backgroundColor: isButtonPressed ? 'white' : theme.colors.primary 
+                      backgroundColor: isButtonPressed ? 'white' : lightColors.accentRose 
                     }]} />
                   </>
                 )}
@@ -227,9 +263,9 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
                 styles.menuButton,
                 { 
                   backgroundColor: pressed ? 
-                    theme.colors.primary : 
-                    `${theme.colors.primary}20`,
-                  borderColor: `${theme.colors.primary}30`,
+                    lightColors.accentRose : 
+                    `${lightColors.accentRose}20`,
+                  borderColor: `${lightColors.accentRose}30`,
                   transform: [{ scale: pressed ? 0.9 : 1 }],
                 }
               ]}
@@ -240,7 +276,7 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
                 <Ionicons 
                   name="arrow-back" 
                   size={24} 
-                  color={pressed ? 'white' : theme.colors.primary} 
+                  color={pressed ? 'white' : lightColors.accentRose} 
                 />
               )}
             </Pressable>
@@ -254,11 +290,10 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
                 { transform: [{ scale: logoScale }] },
               ]}
             >
-              <Text style={styles.phaseEmoji}>{getPhaseEmoji()}</Text>
-              <Text style={[styles.logoText, { color: theme.colors.text.primary }]}>
+              <Text style={[styles.logoText, { color: theme.colors.text.primary }]}> 
                 {getScreenTitle()}
               </Text>
-              <Text style={[styles.logoSubtext, { color: theme.colors.text.tertiary }]}>
+              <Text style={[styles.logoSubtext, { color: theme.colors.text.tertiary }]}> 
                 {theme.phase === 'menstrual' ? 'Renovação' :
                  theme.phase === 'postMenstrual' ? 'Energia' :
                  theme.phase === 'fertile' ? 'Criatividade' :
@@ -275,11 +310,13 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
             ]}
           >
             <LinearGradient
-              colors={theme.colors.gradients.primary as [string, string]}
+              colors={isDarkMode ? 
+                theme.colors.gradients.primary as [string, string] : 
+                [lightColors.accentRose, lightColors.softRose] as [string, string]}
               style={[
                 styles.phaseCircle,
                 {
-                  shadowColor: theme.colors.primary,
+                  shadowColor: lightColors.accentRose,
                   shadowOpacity: 0.4,
                   shadowRadius: 8,
                   elevation: 4,
@@ -299,8 +336,8 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
         <LinearGradient
           colors={[
             'transparent',
-            `${theme.colors.primary}06`,
-            `${theme.colors.primary}02`,
+            `${lightColors.accentRose}06`,
+            `${lightColors.accentRose}02`,
           ]}
           style={styles.shadowGradient}
           start={{ x: 0, y: 0 }}

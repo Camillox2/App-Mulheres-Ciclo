@@ -1,13 +1,15 @@
 // components/AdvancedParticleSystem.tsx - SISTEMA DE PARTÍCULAS AVANÇADO
 import React, { useEffect, useRef, memo } from 'react';
-import { View, Animated, Dimensions, StyleSheet, Text, PanGestureHandler } from 'react-native';
-import { PanGestureHandlerGestureEvent } from 'react-native-gesture-handler';
+import { View, Animated, Dimensions, StyleSheet, Text } from 'react-native';
+import { PanGestureHandler, PanGestureHandlerGestureEvent } from 'react-native-gesture-handler';
 import { useThemeSystem } from '../hooks/useThemeSystem';
 
 interface AdvancedParticle {
   id: number;
   x: Animated.Value;
   y: Animated.Value;
+  currentX: number; // posição atual X
+  currentY: number; // posição atual Y
   opacity: Animated.Value;
   scale: Animated.Value;
   rotation: Animated.Value;
@@ -188,6 +190,8 @@ const AdvancedParticleSystemComponent: React.FC<AdvancedParticleSystemProps> = (
         id: i,
         x: new Animated.Value(initialX),
         y: new Animated.Value(initialY),
+        currentX: initialX,
+        currentY: initialY,
         opacity: new Animated.Value(0),
         scale: new Animated.Value(Math.random() * 0.6 + 0.7),
         rotation: new Animated.Value(0),
@@ -561,22 +565,29 @@ const AdvancedParticleSystemComponent: React.FC<AdvancedParticleSystemProps> = (
     // Cria partículas no local do toque
     particles.forEach(particle => {
       const distance = Math.sqrt(
-        Math.pow(particle.x._value - x, 2) + Math.pow(particle.y._value - y, 2)
+        Math.pow(particle.currentX - x, 2) + Math.pow(particle.currentY - y, 2)
       );
       
       if (distance < 100) {
         // Aplica força de repulsão
         const force = (100 - distance) / 100;
-        const angle = Math.atan2(particle.y._value - y, particle.x._value - x);
+        const angle = Math.atan2(particle.currentY - y, particle.currentX - x);
+        
+        const newX = particle.currentX + Math.cos(angle) * force * 50;
+        const newY = particle.currentY + Math.sin(angle) * force * 50;
+        
+        // Atualiza posições atuais
+        particle.currentX = newX;
+        particle.currentY = newY;
         
         Animated.timing(particle.x, {
-          toValue: particle.x._value + Math.cos(angle) * force * 50,
+          toValue: newX,
           duration: 500,
           useNativeDriver: true,
         }).start();
         
         Animated.timing(particle.y, {
-          toValue: particle.y._value + Math.sin(angle) * force * 50,
+          toValue: newY,
           duration: 500,
           useNativeDriver: true,
         }).start();

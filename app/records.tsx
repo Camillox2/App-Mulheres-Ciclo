@@ -105,6 +105,7 @@ export default function RecordsScreen() {
 
       allRecords.push(record);
       await AsyncStorage.setItem('dailyRecords', JSON.stringify(allRecords));
+      await AsyncStorage.setItem('dataLastUpdate', Date.now().toString());
       
       loadTodayRecords();
       Alert.alert('Sucesso', 'Registro salvo com sucesso!');
@@ -121,6 +122,7 @@ export default function RecordsScreen() {
         const allRecords: Record[] = JSON.parse(recordsData);
         const updatedRecords = allRecords.filter(record => record.id !== recordId);
         await AsyncStorage.setItem('dailyRecords', JSON.stringify(updatedRecords));
+        await AsyncStorage.setItem('dataLastUpdate', Date.now().toString());
         loadTodayRecords();
       }
     } catch (error) {

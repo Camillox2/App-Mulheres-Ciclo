@@ -285,23 +285,39 @@ export default function SettingsScreen() {
 
  const handleExportData = async () => {
   try {
-   const userProfileData = await AsyncStorage.getItem('userProfile');
-   const cycleDataData = await AsyncStorage.getItem('cycleData');
-   const dailyRecordsData = await AsyncStorage.getItem('dailyRecords');
-   const notificationSettingsData = await AsyncStorage.getItem('notificationSettings');
-
-   const allData = {
-    profile: userProfileData ? JSON.parse(userProfileData) : null,
-    cycle: cycleDataData ? JSON.parse(cycleDataData) : null,
-    records: dailyRecordsData ? JSON.parse(dailyRecordsData) : null,
-    notifications: notificationSettingsData ? JSON.parse(notificationSettingsData) : null,
-    exportDate: new Date().toISOString(),
-   };
-
+   // Usando sistema de backup simplificado
+   const { createBackup, shareBackup } = require('../hooks/useSimpleBackup').useSimpleBackup();
+   
    Alert.alert(
-    'Dados Exportados',
-    'Seus dados foram preparados para exportação. Em uma versão completa, eles seriam salvos em um arquivo.',
-    [{ text: 'OK' }]
+    'Exportar Dados',
+    'Como você gostaria de exportar seus dados?',
+    [
+     {
+      text: 'Compartilhar Backup',
+      onPress: async () => {
+       try {
+        await shareBackup();
+        Alert.alert('Sucesso', 'Backup compartilhado com sucesso!');
+       } catch (error) {
+        Alert.alert('Erro', 'Não foi possível compartilhar o backup');
+       }
+      }
+     },
+     {
+      text: 'Criar Backup Local',
+      onPress: async () => {
+       try {
+        const backupId = await createBackup();
+        if (backupId) {
+         Alert.alert('Sucesso', `Backup criado: ${backupId}`);
+        }
+       } catch (error) {
+        Alert.alert('Erro', 'Não foi possível criar o backup');
+       }
+      }
+     },
+     { text: 'Cancelar', style: 'cancel' }
+    ]
    );
   } catch (error) {
    console.error('Erro ao exportar dados:', error);
@@ -321,13 +337,7 @@ export default function SettingsScreen() {
  return (
   <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
    <View style={styles.header}>
-    <TouchableOpacity
-     style={[styles.backButton, { backgroundColor: theme.colors.surface }]}
-     onPress={() => router.back()}
-    >
-     <Text style={[styles.backButtonText, { color: theme.colors.primary }]}>←</Text>
-    </TouchableOpacity>
-    <Text style={[styles.title, { color: theme.colors.primary }]}>
+    <Text style={[styles.title, { color: theme.colors.primary }]}> 
      Configurações
     </Text>
     <View style={styles.headerSpacer} />

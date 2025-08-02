@@ -19,6 +19,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { GlobalHeader } from '../components/GlobalHeader';
 import { SidebarDrawer } from '../components/Sidebar';
 import { useThemeSystem } from '../hooks/useThemeSystem';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -108,56 +109,47 @@ export default function RootLayout() {
     }
   }, [translateX, DRAWER_WIDTH, setDrawerState]);
 
-  // Gesture otimizado para swipe da esquerda - VERSÃO MELHORADA
+  // Gesture otimizado para swipe - SÓ BORDA ESQUERDA
   const panGesture = Gesture.Pan()
-    .minDistance(1) // Muito sensível
+    .minDistance(5) // Menos sensível para evitar conflitos
     .maxPointers(1)
     .onStart((event) => {
+      // Só ativa se começar na borda esquerda (primeiros 20px)
+      if (event.x > 20) return;
       gestureX.value = translateX.value;
-      console.log('🖐️ Gesto iniciado - X:', event.x, 'Y:', event.y, 'DrawerPos:', translateX.value);
+      console.log('🖐️ Gesto iniciado na borda - X:', event.x);
     })
     .onUpdate((event) => {
-      // Só permite o gesto se começar próximo à borda esquerda
-      if (event.absoluteX < 100 || translateX.value > -DRAWER_WIDTH + 50) {
-        const newX = gestureX.value + event.translationX;
-        
-        // Para abrir: movimento para direita
-        if (event.translationX > 0) {
-          translateX.value = Math.max(-DRAWER_WIDTH, Math.min(0, newX));
-        }
-        // Para fechar: movimento para esquerda quando já está aberto
-        else if (translateX.value > -DRAWER_WIDTH + 10) {
-          translateX.value = Math.max(-DRAWER_WIDTH, Math.min(0, newX));
-        }
+      // Só processa se começou na borda esquerda
+      if (event.x > 20 && translateX.value <= -DRAWER_WIDTH + 10) return;
+      
+      const newX = gestureX.value + event.translationX;
+      
+      // Para abrir: movimento para direita
+      if (event.translationX > 0) {
+        translateX.value = Math.max(-DRAWER_WIDTH, Math.min(0, newX));
+      }
+      // Para fechar: movimento para esquerda quando já está aberto
+      else if (translateX.value > -DRAWER_WIDTH + 10) {
+        translateX.value = Math.max(-DRAWER_WIDTH, Math.min(0, newX));
       }
     })
     .onEnd((event) => {
       const velocity = event.velocityX;
       const currentPosition = translateX.value;
       
-      console.log('🏁 Gesto finalizado:', {
-        velocity,
-        currentPosition,
-        threshold: -DRAWER_WIDTH / 2,
-        absoluteX: event.absoluteX
-      });
-      
       // Decisão baseada em velocidade e posição
-      if (velocity > 500 && velocity > 0) {
+      if (velocity > 800 && velocity > 0) {
         // Swipe rápido para direita = abrir
-        console.log('➡️ Swipe rápido - Abrindo');
         openDrawer();
-      } else if (velocity < -500 && velocity < 0) {
+      } else if (velocity < -800 && velocity < 0) {
         // Swipe rápido para esquerda = fechar
-        console.log('⬅️ Swipe rápido - Fechando');
         closeDrawer();
       } else if (currentPosition > -DRAWER_WIDTH / 2) {
         // Mais da metade aberto = abrir
-        console.log('📖 Mais da metade - Abrindo');
         openDrawer();
       } else {
         // Caso contrário = fechar
-        console.log('📕 Menos da metade - Fechando');
         closeDrawer();
       }
     });
@@ -214,11 +206,12 @@ export default function RootLayout() {
   }
 
   return (
-    <GestureHandlerRootView style={[styles.container, { backgroundColor: theme.colors.background }]}> 
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+    <ErrorBoundary>
+      <GestureHandlerRootView style={[styles.container, { backgroundColor: theme.colors.background }]}> 
+        <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
       
-      {/* Gesture detector - ÁREA EXPANDIDA para melhor detecção */}
-      {shouldShowSidebar && (
+      {/* Gesture detector - ÁREA OTIMIZADA para não interferir em botões */}
+      {shouldShowSidebar && !isDrawerOpen && (
         <GestureDetector gesture={panGesture}>
           <Animated.View 
             style={[
@@ -226,10 +219,10 @@ export default function RootLayout() {
               { 
                 left: 0,
                 top: shouldShowHeader ? 80 : 0,
-                width: isDrawerOpen ? '100%' : 80,
+                width: 20, // Reduzido para apenas 20px na borda
                 height: '100%',
                 position: 'absolute',
-                zIndex: isDrawerOpen ? 0 : 10,
+                zIndex: 5, // Reduzido para não sobrepor botões
                 backgroundColor: 'transparent',
               }
             ]} 
@@ -289,7 +282,8 @@ export default function RootLayout() {
             </Stack>
           </View>
         </Animated.View>
-    </GestureHandlerRootView>
+      </GestureHandlerRootView>
+    </ErrorBoundary>
   );
 }
 

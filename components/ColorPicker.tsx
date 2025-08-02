@@ -4,11 +4,14 @@ import {
   View,
   Text,
   StyleSheet,
+} from 'react-native';
+import { 
   PanGestureHandler,
   TapGestureHandler,
   State,
-} from 'react-native';
-import { PanGestureHandlerGestureEvent, TapGestureHandlerGestureEvent } from 'react-native-gesture-handler';
+  PanGestureHandlerGestureEvent, 
+  TapGestureHandlerGestureEvent 
+} from 'react-native-gesture-handler';
 import Animated, {
   useAnimatedGestureHandler,
   useAnimatedStyle,

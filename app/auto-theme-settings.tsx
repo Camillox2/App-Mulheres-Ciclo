@@ -13,6 +13,7 @@ import {
   Alert,
 } from 'react-native';
 import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useThemeSystem, ThemeVariant } from '../hooks/useThemeSystem';
 import { CyclePhase } from '../hooks/useAdaptiveTheme';
@@ -125,9 +126,29 @@ export default function AutoThemeSettingsScreen() {
   const { theme, isLightMode } = useThemeSystem();
   const themeSystem = useThemeSystem();
   const [isLoading, setIsLoading] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [localAutoThemeEnabled, setLocalAutoThemeEnabled] = useState(false);
 
   const headerAnim = useRef(new Animated.Value(0)).current;
   const contentAnim = useRef(new Animated.Value(0)).current;
+
+  // Carrega o estado inicial do tema automático
+  useEffect(() => {
+    const loadInitialState = async () => {
+      try {
+        const savedSettings = await AsyncStorage.getItem('cycleThemeSettings');
+        if (savedSettings) {
+          const parsed = JSON.parse(savedSettings);
+          setLocalAutoThemeEnabled(parsed.autoThemeEnabled || false);
+          console.log('🔄 Estado inicial carregado:', parsed.autoThemeEnabled);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar estado inicial:', error);
+      }
+    };
+    
+    loadInitialState();
+  }, []);
 
   useEffect(() => {
     Animated.stagger(200, [
@@ -144,21 +165,72 @@ export default function AutoThemeSettingsScreen() {
     ]).start();
   }, []);
 
+  // Força atualização do estado quando o componente é focado
+  useEffect(() => {
+    const forceRefresh = () => {
+      setRefreshKey(prev => prev + 1);
+    };
+    
+    const interval = setInterval(forceRefresh, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Log do estado para debug
+  useEffect(() => {
+    const cycleTheme = themeSystem?.cycleTheme;
+    const systemEnabled = cycleTheme?.isEnabled || false;
+    
+    // Atualiza o estado local quando o sistema mudar
+    setLocalAutoThemeEnabled(systemEnabled);
+    
+    console.log('🔍 Estado do tema automático:', {
+      isEnabled: systemEnabled,
+      localState: localAutoThemeEnabled,
+      refreshKey,
+      hasThemeSystem: !!themeSystem,
+      hasCycleTheme: !!cycleTheme
+    });
+  }, [refreshKey, themeSystem, localAutoThemeEnabled]);
+
   const handleToggleAutoTheme = async () => {
     if (!themeSystem?.cycleTheme) return;
     
     setIsLoading(true);
+    const newState = !localAutoThemeEnabled;
+    
+    // Atualiza o estado local imediatamente para responsividade
+    setLocalAutoThemeEnabled(newState);
+    
     try {
       await themeSystem.cycleTheme.toggleAutoTheme();
       
-      if (!themeSystem.cycleTheme.isEnabled) {
-        Alert.alert(
-          '🌸 Tema Automático Ativado!',
-          'Agora seus temas vão mudar automaticamente conforme seu ciclo menstrual. Você pode personalizar cada fase abaixo.',
-          [{ text: 'Entendi', style: 'default' }]
-        );
-      }
+      // Força refresh do componente e feedback do usuário
+      setTimeout(async () => {
+        setRefreshKey(prev => prev + 1);
+        
+        // Verifica o novo estado após a mudança
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        if (newState) {
+          Alert.alert(
+            '🌸 Tema Automático Ativado!',
+            'Agora seus temas vão mudar automaticamente conforme seu ciclo menstrual. Você pode personalizar cada fase abaixo.',
+            [{ text: 'Entendi', style: 'default' }]
+          );
+        } else {
+          Alert.alert(
+            '🎨 Tema Automático Desativado',
+            'Você voltou ao controle manual dos temas. Suas configurações personalizadas foram salvas.',
+            [{ text: 'OK', style: 'default' }]
+          );
+        }
+        
+        console.log(`🔄 Estado do tema automático após toggle: ${newState}`);
+      }, 300);
     } catch (error) {
+      console.error('Erro ao alternar tema automático:', error);
+      // Reverte o estado local em caso de erro
+      setLocalAutoThemeEnabled(!newState);
       Alert.alert('Erro', 'Não foi possível alterar as configurações.');
     } finally {
       setIsLoading(false);
@@ -197,7 +269,8 @@ export default function AutoThemeSettingsScreen() {
   if (!theme || !themeSystem) return null;
 
   const cycleTheme = themeSystem.cycleTheme;
-  const isAutoThemeEnabled = cycleTheme?.isEnabled || false;
+  // Usa o estado local para responsividade imediata
+  const isAutoThemeEnabled = localAutoThemeEnabled;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -274,6 +347,7 @@ export default function AutoThemeSettingsScreen() {
                 </Text>
               </View>
               <Switch
+                key={`auto-theme-switch-${refreshKey}`}
                 value={isAutoThemeEnabled}
                 onValueChange={handleToggleAutoTheme}
                 trackColor={{ false: theme.colors.border, true: theme.colors.primary }}

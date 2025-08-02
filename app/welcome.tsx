@@ -11,7 +11,7 @@ import {
   ViewToken,
   Image,
 } from 'react-native';
-import logoTwo from '../assets/images/logoFour.png';
+import logoFour from '../assets/images/logoFour.png';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -33,7 +33,7 @@ const slides: {
 }[] = [
   {
     key: '1',
-    image: logoTwo,
+    image: logoFour,
     title: 'Bem-vinda ao Entre Fases',
     subtitle: 'Seu guia inteligente para o ciclo menstrual.',
     description: 'Aqui começa uma jornada de autoconhecimento. Entenda seus ritmos, abrace suas fases e floresça em cada uma delas.',
@@ -41,7 +41,7 @@ const slides: {
   },
   {
     key: '2',
-    image: logoTwo,
+    image: logoFour,
     title: 'Cores que se Adaptam',
     subtitle: 'Uma interface que reflete seu estado interior.',
     description: 'Nossa paleta de cores se transforma com você, criando uma experiência visual que espelha sua energia e humor a cada fase do ciclo.',
@@ -49,7 +49,7 @@ const slides: {
   },
   {
   key: '3',
-    image: logoTwo,
+    image: logoFour,
     title: 'Previsões e Insights',
     subtitle: 'Saiba o que esperar de cada dia.',
     description: 'Receba previsões precisas sobre sua menstruação, período fértil e ovulação, além de dicas personalizadas para seu bem-estar.',
@@ -57,7 +57,7 @@ const slides: {
   },
   {
     key: '4',
-    image: logoTwo,
+    image: logoFour,
     title: 'Sua Jornada, Sua Privacidade',
     subtitle: 'Seus dados são seus, e de mais ninguém.',
     description: 'Levamos sua privacidade a sério. Todos os seus registros são armazenados de forma segura apenas no seu dispositivo, garantindo total confidencialidade.',
@@ -65,7 +65,7 @@ const slides: {
   },
   {
     key: '5',
-    image: logoTwo,
+    image: logoFour,
     title: 'Feito com Amor',
     subtitle: 'Um presente para sua jornada.',
     description: 'O Entre Fases foi criado com carinho para ser seu companheiro diário, apoiando seu bem-estar e celebrando a beleza de ser mulher.',

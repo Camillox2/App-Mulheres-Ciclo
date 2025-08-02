@@ -44,56 +44,56 @@ const THEME_VARIANTS = {
         primary: '#FF6B9D',
         secondary: '#FFB4D6',
         accent: '#FF8FAB',
-        background: '#FFF5F8',
+        background: '#FFF9FC',
         surface: '#FFFFFF',
         text: { primary: '#2D1B2F', secondary: '#6B4C7A', tertiary: '#9A7AA8' },
-        gradients: { primary: ['#FFE5F0', '#FF6B9D'] as [string, string] },
+        gradients: { primary: ['#FFF0F5', '#FFE5F0'] as [string, string] },
         particles: '#FFB4D6',
-        border: '#F0E6EA',
+        border: '#F5E6EA',
       },
       postMenstrual: {
         primary: '#E91E63',
         secondary: '#F8BBD9',
         accent: '#F48FB1',
-        background: '#FFF0F5',
+        background: '#FFF8FA',
         surface: '#FFFFFF',
         text: { primary: '#2D1B2F', secondary: '#6B4C7A', tertiary: '#9A7AA8' },
-        gradients: { primary: ['#FCE4EC', '#E91E63'] as [string, string] },
+        gradients: { primary: ['#FFF0F5', '#FCE4EC'] as [string, string] },
         particles: '#F8BBD9',
-        border: '#F0E6EA',
+        border: '#F5E6EA',
       },
       fertile: {
         primary: '#FF4081',
         secondary: '#FF80AB',
         accent: '#FF6B9D',
-        background: '#FFF5F8',
+        background: '#FFF9FC',
         surface: '#FFFFFF',
         text: { primary: '#2D1B2F', secondary: '#6B4C7A', tertiary: '#9A7AA8' },
-        gradients: { primary: ['#FF80AB20', '#FF4081'] as [string, string] },
+        gradients: { primary: ['#FFF5F8', '#FFE8F0'] as [string, string] },
         particles: '#FF80AB',
-        border: '#F0E6EA',
+        border: '#F5E6EA',
       },
       ovulation: {
         primary: '#D81B60',
         secondary: '#F06292',
         accent: '#E91E63',
-        background: '#FFF0F5',
+        background: '#FFF8FA',
         surface: '#FFFFFF',
         text: { primary: '#2D1B2F', secondary: '#6B4C7A', tertiary: '#9A7AA8' },
-        gradients: { primary: ['#F06292', '#D81B60'] as [string, string] },
+        gradients: { primary: ['#FFF0F5', '#FCE4EC'] as [string, string] },
         particles: '#F06292',
-        border: '#F0E6EA',
+        border: '#F5E6EA',
       },
       preMenstrual: {
         primary: '#AD1457',
         secondary: '#E91E63',
         accent: '#C2185B',
-        background: '#FFF0F5',
+        background: '#FFF8FA',
         surface: '#FFFFFF',
         text: { primary: '#2D1B2F', secondary: '#6B4C7A', tertiary: '#9A7AA8' },
-        gradients: { primary: ['#E91E63', '#AD1457'] as [string, string] },
+        gradients: { primary: ['#FFF0F5', '#FCE4EC'] as [string, string] },
         particles: '#E91E63',
-        border: '#F0E6EA',
+        border: '#F5E6EA',
       },
     },
     dark: {
@@ -761,6 +761,39 @@ export const useThemeSystem = () => {
     loadSettings();
   }, []);
 
+  // Listener para mudanças de tema em tempo real
+  useEffect(() => {
+    const checkForThemeChanges = async () => {
+      try {
+        const lastChanged = await AsyncStorage.getItem('themeLastChanged');
+        const currentTimestamp = await AsyncStorage.getItem('currentThemeTimestamp') || '0';
+        
+        if (lastChanged && lastChanged !== currentTimestamp) {
+          await AsyncStorage.setItem('currentThemeTimestamp', lastChanged);
+          // Recarregar configurações
+          await loadSettings();
+        }
+      } catch (error) {
+        console.error('Erro ao verificar mudanças de tema:', error);
+      }
+    };
+
+    // Verificação mais frequente para mudanças de tema
+    const interval = setInterval(checkForThemeChanges, 100);
+    return () => clearInterval(interval);
+  }, [selectedVariant, mode]);
+
+  // Listener adicional para mudanças imediatas
+  useEffect(() => {
+    const handleStorageChange = () => {
+      loadSettings();
+    };
+    
+    // Simular listener de storage changes
+    const storageInterval = setInterval(handleStorageChange, 50);
+    return () => clearInterval(storageInterval);
+  }, []);
+
   const loadSettings = async () => {
     try {
       const [savedVariant, savedMode] = await Promise.all([
@@ -866,6 +899,10 @@ export const useThemeSystem = () => {
   const saveThemeVariant = useCallback(async (variant: ThemeVariant, isManual = true) => {
     try {
       await AsyncStorage.setItem('selectedThemeVariant', variant);
+      
+      // Marca timestamp da mudança para forçar atualização em outras telas
+      await AsyncStorage.setItem('themeLastChanged', Date.now().toString());
+      
       setSelectedVariant(variant);
       
       // Força atualização da fase atual para aplicar o novo tema
@@ -875,6 +912,8 @@ export const useThemeSystem = () => {
       if (isManual && cycleTheme) {
         await cycleTheme.setManualOverride(true);
       }
+      
+      console.log('🎨 Tema alterado para:', variant);
     } catch (error) {
       console.error('Erro ao salvar variante:', error);
     }
@@ -885,7 +924,13 @@ export const useThemeSystem = () => {
     const newMode = mode === 'light' ? 'dark' : 'light';
     try {
       await AsyncStorage.setItem('themeMode', newMode);
+      
+      // Marca timestamp da mudança para forçar atualização em outras telas
+      await AsyncStorage.setItem('themeLastChanged', Date.now().toString());
+      
       setMode(newMode);
+      
+      console.log('🎨 Modo alterado para:', newMode);
     } catch (error) {
       console.error('Erro ao alternar modo:', error);
     }

@@ -42,7 +42,7 @@ const menuItems = [
   { key: 'home', icon: '🏠', label: 'Início', screen: 'home' },
   { key: 'calendar', icon: '📅', label: 'Calendário', screen: 'calendar' },
   { key: 'records', icon: '📝', label: 'Registros', screen: 'records' },
-  { key: 'analytics', icon: '📊', label: 'Estatísticas', screen: 'analytics' },
+  { key: 'super-analytics', icon: '📈', label: 'Super Analytics', screen: 'super-analytics' },
   { key: 'theme-settings', icon: '🎨', label: 'Temas', screen: 'theme-settings' },
   { key: 'settings', icon: '⚙️', label: 'Configurações', screen: 'settings' },
 ];

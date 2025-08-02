@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, memo } from 'react';
+import React, { useEffect, useRef, memo, useMemo } from 'react';
 import { View, Animated, Dimensions, StyleSheet } from 'react-native';
 
 interface Particle {
@@ -24,30 +24,30 @@ const { width, height } = Dimensions.get('window');
 const ParticleSystemComponent: React.FC<ParticleSystemProps> = ({
   particleColor,
   opacity = 0.6,
-  count = 26,
-  duration = 10000,
+  count = 15, // Reduzido de 26 para 15
+  duration = 12000, // Aumentado para movimentos mais suaves
   enabled = true,
 }) => {
-  const particles = useRef<Particle[]>([]).current;
-  const animations = useRef<Animated.CompositeAnimation[]>([]).current;
-
-  // Inicializa as partículas apenas uma vez ou quando a contagem muda
-  if (particles.length !== count) {
-    particles.length = 0; // Limpa o array
+  // Memoiza as partículas para evitar recriações desnecessárias
+  const particles = useMemo(() => {
+    const particleArray: Particle[] = [];
     for (let i = 0; i < count; i++) {
       const initialX = Math.random() * width;
       const initialY = Math.random() * height;
-      particles.push({
+      particleArray.push({
         id: i,
         x: new Animated.Value(initialX),
         y: new Animated.Value(initialY),
         opacity: new Animated.Value(0),
-        scale: new Animated.Value(Math.random() * 0.5 + 0.5),
+        scale: new Animated.Value(Math.random() * 0.4 + 0.6), // Tamanhos mais consistentes
         initialX,
         initialY,
       });
     }
-  }
+    return particleArray;
+  }, [count]);
+  
+  const animations = useRef<Animated.CompositeAnimation[]>([]).current;
 
   const stopAnimations = () => {
     animations.forEach(anim => anim.stop());
@@ -58,11 +58,12 @@ const ParticleSystemComponent: React.FC<ParticleSystemProps> = ({
     stopAnimations(); // Garante que animações anteriores sejam paradas
 
     particles.forEach((particle, index) => {
-      const randomDuration = duration + Math.random() * 3000;
-      const randomDelay = Math.random() * 2000;
+      const randomDuration = duration + Math.random() * 2000; // Reduzido variação
+      const randomDelay = Math.random() * 1500; // Reduzido delay
 
-      const toX = particle.initialX + (Math.random() - 0.5) * 80;
-      const toY = particle.initialY + (Math.random() - 0.5) * 80;
+      // Movimento mais sutil e suave
+      const toX = particle.initialX + (Math.random() - 0.5) * 60; // Reduzido de 80 para 60
+      const toY = particle.initialY + (Math.random() - 0.5) * 60;
 
       const anim = Animated.loop(
         Animated.sequence([
@@ -78,7 +79,7 @@ const ParticleSystemComponent: React.FC<ParticleSystemProps> = ({
               useNativeDriver: true,
             }),
             Animated.timing(particle.opacity, {
-              toValue: opacity,
+              toValue: opacity * 0.8, // Reduzida opacidade para menos distração
               duration: randomDuration / 2,
               useNativeDriver: true,
             }),
@@ -105,9 +106,12 @@ const ParticleSystemComponent: React.FC<ParticleSystemProps> = ({
 
       animations.push(anim);
 
-      setTimeout(() => {
+      // Use requestAnimationFrame para melhor performance
+      const timeoutId = setTimeout(() => {
         if (enabled) {
-          anim.start();
+          requestAnimationFrame(() => {
+            anim.start();
+          });
         }
       }, randomDelay);
     });
@@ -115,15 +119,18 @@ const ParticleSystemComponent: React.FC<ParticleSystemProps> = ({
 
   useEffect(() => {
     if (enabled) {
-      startAnimations();
+      // Delay pequeno para evitar sobrecarregar o render inicial
+      const timeoutId = setTimeout(() => {
+        startAnimations();
+      }, 300);
+      return () => {
+        clearTimeout(timeoutId);
+        stopAnimations();
+      };
     } else {
       stopAnimations();
     }
-
-    return () => {
-      stopAnimations();
-    };
-  }, [enabled, count, duration, opacity, particleColor]);
+  }, [enabled, opacity, particleColor]); // Removido count e duration das dependências
 
   if (!enabled) {
     return null;
@@ -159,9 +166,10 @@ const styles = StyleSheet.create({
   },
   particle: {
     position: 'absolute',
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 4, // Reduzido de 6 para 4
+    height: 4,
+    borderRadius: 2,
+    shadowColor: 'transparent', // Remove sombras para melhor performance
   },
 });
 

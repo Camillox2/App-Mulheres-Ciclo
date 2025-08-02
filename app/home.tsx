@@ -20,6 +20,7 @@ import { calculateCycleInfo } from '../hooks/cycleCalculations';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import moment from 'moment';
 import React from 'react';
+import { LoadingState } from '../components/LoadingState';
 
 const { width, height } = Dimensions.get('window');
 
@@ -221,7 +222,12 @@ export default function HomeScreen() {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme?.colors.background || '#0A0A0F' }]}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme?.colors.primary || '#FF6B9D'} />
+          <LoadingState 
+            message="Preparando sua tela inicial..."
+            type="cycle"
+            size="large"
+            color={theme?.colors.primary || '#FF6B9D'}
+          />
         </View>
       </SafeAreaView>
     );
@@ -231,7 +237,12 @@ export default function HomeScreen() {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: '#0A0A0F' }]}>
         <View style={styles.loadingContainer}>
-          <Text style={[styles.loadingText, { color: '#FECDD3' }]}>Preparando tema...</Text>
+          <LoadingState 
+            message="Preparando tema..."
+            type="shimmer"
+            size="medium"
+            color="#FF6B9D"
+          />
         </View>
       </SafeAreaView>
     );

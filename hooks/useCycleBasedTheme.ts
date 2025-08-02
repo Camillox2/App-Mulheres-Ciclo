@@ -43,6 +43,9 @@ export const useCycleBasedTheme = () => {
       if (savedSettings) {
         const parsed = JSON.parse(savedSettings);
         setSettings(prev => ({ ...prev, ...parsed }));
+        console.log('🔄 Configurações carregadas:', parsed);
+      } else {
+        console.log('🔄 Nenhuma configuração salva encontrada, usando padrões');
       }
     } catch (error) {
       console.error('Erro ao carregar configurações de tema automático:', error);
@@ -50,6 +53,35 @@ export const useCycleBasedTheme = () => {
       setIsLoading(false);
     }
   }, []);
+
+  // Carrega configurações iniciais uma única vez
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
+  // Listener para mudanças nas configurações (simplificado)
+  useEffect(() => {
+    if (isLoading) return; // Não verifica durante carregamento inicial
+    
+    const checkForSettingsChanges = async () => {
+      try {
+        const savedSettings = await AsyncStorage.getItem('cycleThemeSettings');
+        if (savedSettings) {
+          const parsed = JSON.parse(savedSettings);
+          // Atualiza apenas se realmente mudou
+          if (JSON.stringify(parsed) !== JSON.stringify(settings)) {
+            console.log('🔄 Configurações mudaram externamente, atualizando...');
+            setSettings(parsed);
+          }
+        }
+      } catch (error) {
+        console.error('Erro ao verificar mudanças de configuração:', error);
+      }
+    };
+
+    const interval = setInterval(checkForSettingsChanges, 2000);
+    return () => clearInterval(interval);
+  }, [settings, isLoading]);
 
   // Salva configurações
   const saveSettings = useCallback(async (newSettings: Partial<CycleThemeSettings>) => {
@@ -135,13 +167,27 @@ export const useCycleBasedTheme = () => {
   // Ativa/desativa tema automático
   const toggleAutoTheme = useCallback(async () => {
     const newState = !settings.autoThemeEnabled;
-    await saveSettings({ autoThemeEnabled: newState });
     
-    if (newState) {
-      // Se ativou, aplica tema imediatamente
-      await applyAutoTheme(true);
+    try {
+      // Salva primeiro no AsyncStorage
+      const updatedSettings = { ...settings, autoThemeEnabled: newState };
+      await AsyncStorage.setItem('cycleThemeSettings', JSON.stringify(updatedSettings));
+      
+      // Atualiza o estado local
+      setSettings(updatedSettings);
+      
+      console.log(`🔄 Tema automático ${newState ? 'ATIVADO' : 'DESATIVADO'} e salvo`);
+      
+      if (newState) {
+        // Se ativou, aplica tema imediatamente
+        await applyAutoTheme(true);
+      }
+      
+    } catch (error) {
+      console.error('Erro ao alternar tema automático:', error);
+      throw error; // Propaga o erro para a UI
     }
-  }, [settings.autoThemeEnabled, saveSettings, applyAutoTheme]);
+  }, [settings, applyAutoTheme]);
 
   // Personaliza mapeamento de fases para temas
   const updatePhaseThemeMapping = useCallback(async (phase: CyclePhase, theme: ThemeVariant) => {
