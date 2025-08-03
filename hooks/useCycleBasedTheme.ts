@@ -35,62 +35,74 @@ export const useCycleBasedTheme = () => {
   });
   const [currentPhase, setCurrentPhase] = useState<CyclePhase>('menstrual');
   const [isLoading, setIsLoading] = useState(true);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   // Carrega configurações salvas
   const loadSettings = useCallback(async () => {
+    if (isLoading === false) return; // Evita múltiplas execuções
+    
     try {
+      console.log('🔄 Carregando configurações...');
       const savedSettings = await AsyncStorage.getItem('cycleThemeSettings');
       if (savedSettings) {
         const parsed = JSON.parse(savedSettings);
-        setSettings(prev => ({ ...prev, ...parsed }));
-        console.log('🔄 Configurações carregadas:', parsed);
+        console.log('🔄 Configurações encontradas:', parsed);
+        setSettings(parsed);
       } else {
-        console.log('🔄 Nenhuma configuração salva encontrada, usando padrões');
+        console.log('🔄 Usando configurações padrão');
+        const defaultSettings = {
+          autoThemeEnabled: false,
+          phaseThemeMapping: DEFAULT_PHASE_THEME_MAPPING,
+          lastThemeUpdate: '',
+          manualOverride: false,
+        };
+        setSettings(defaultSettings);
       }
     } catch (error) {
-      console.error('Erro ao carregar configurações de tema automático:', error);
+      console.error('Erro ao carregar configurações:', error);
     } finally {
       setIsLoading(false);
     }
+  }, [isLoading]);
+
+  // Carrega configurações APENAS uma vez
+  useEffect(() => {
+    if (isLoading) {
+      loadSettings();
+    }
   }, []);
 
-  // Carrega configurações iniciais uma única vez
+  // Atualiza fase atual periodicamente
   useEffect(() => {
-    loadSettings();
-  }, []);
+    if (!isLoading) {
+      getCurrentCyclePhase();
+      
+      // Atualiza a fase a cada 5 minutos para detectar mudanças
+      const interval = setInterval(getCurrentCyclePhase, 5 * 60 * 1000);
+      return () => clearInterval(interval);
+    }
+  }, [isLoading, getCurrentCyclePhase]);
 
-  // Listener para mudanças nas configurações (simplificado)
+  // Aplica tema automaticamente quando necessário
   useEffect(() => {
-    if (isLoading) return; // Não verifica durante carregamento inicial
-    
-    const checkForSettingsChanges = async () => {
-      try {
-        const savedSettings = await AsyncStorage.getItem('cycleThemeSettings');
-        if (savedSettings) {
-          const parsed = JSON.parse(savedSettings);
-          // Atualiza apenas se realmente mudou
-          if (JSON.stringify(parsed) !== JSON.stringify(settings)) {
-            console.log('🔄 Configurações mudaram externamente, atualizando...');
-            setSettings(parsed);
-          }
-        }
-      } catch (error) {
-        console.error('Erro ao verificar mudanças de configuração:', error);
-      }
-    };
+    if (!isLoading && settings.autoThemeEnabled && !settings.manualOverride) {
+      console.log('🔄 Verificando se precisa aplicar tema automático...');
+      applyAutoTheme();
+    }
+  }, [settings.autoThemeEnabled, settings.phaseThemeMapping, currentPhase, isLoading, settings.manualOverride, applyAutoTheme]);
 
-    const interval = setInterval(checkForSettingsChanges, 2000);
-    return () => clearInterval(interval);
-  }, [settings, isLoading]);
 
   // Salva configurações
   const saveSettings = useCallback(async (newSettings: Partial<CycleThemeSettings>) => {
     try {
       const updatedSettings = { ...settings, ...newSettings };
+      console.log('💾 Salvando configurações:', updatedSettings);
       await AsyncStorage.setItem('cycleThemeSettings', JSON.stringify(updatedSettings));
       setSettings(updatedSettings);
+      console.log('✅ Configurações salvas com sucesso');
     } catch (error) {
-      console.error('Erro ao salvar configurações de tema automático:', error);
+      console.error('❌ Erro ao salvar configurações de tema automático:', error);
+      throw error;
     }
   }, [settings]);
 
@@ -146,8 +158,11 @@ export const useCycleBasedTheme = () => {
 
       const newTheme = settings.phaseThemeMapping[phase];
       
+      console.log(`🌸 Aplicando tema automático: ${newTheme} para fase ${phase}`);
+      
       // Salva o tema selecionado
       await AsyncStorage.setItem('selectedThemeVariant', newTheme);
+      await AsyncStorage.setItem('themeLastChanged', Date.now().toString());
       
       // Atualiza a data da última atualização
       await saveSettings({ 
@@ -155,45 +170,99 @@ export const useCycleBasedTheme = () => {
         manualOverride: false,
       });
 
-      console.log(`🌸 Tema automático aplicado: ${newTheme} para fase ${phase}`);
+      console.log(`✅ Tema automático aplicado com sucesso: ${newTheme}`);
       
       return newTheme;
     } catch (error) {
-      console.error('Erro ao aplicar tema automático:', error);
+      console.error('❌ Erro ao aplicar tema automático:', error);
       return null;
     }
   }, [settings, getCurrentCyclePhase, saveSettings]);
 
   // Ativa/desativa tema automático
   const toggleAutoTheme = useCallback(async () => {
-    const newState = !settings.autoThemeEnabled;
+    if (isUpdating) {
+      console.log('⏳ Toggle já em progresso, ignorando...');
+      return settings.autoThemeEnabled;
+    }
+    
+    setIsUpdating(true);
     
     try {
-      // Salva primeiro no AsyncStorage
-      const updatedSettings = { ...settings, autoThemeEnabled: newState };
-      await AsyncStorage.setItem('cycleThemeSettings', JSON.stringify(updatedSettings));
+      // Le o estado atual diretamente do storage para ter certeza
+      const currentStorageData = await AsyncStorage.getItem('cycleThemeSettings');
+      const currentStorageState = currentStorageData ? JSON.parse(currentStorageData) : settings;
+      const currentState = currentStorageState.autoThemeEnabled;
+      const newState = !currentState;
       
-      // Atualiza o estado local
+      console.log(`🔄 TOGGLE: ${currentState} → ${newState}`);
+      
+      // Cria nova configuração completa
+      const updatedSettings = {
+        ...currentStorageState,
+        autoThemeEnabled: newState,
+        manualOverride: false,
+      };
+      
+      // Salva de forma atômica
+      await AsyncStorage.setItem('cycleThemeSettings', JSON.stringify(updatedSettings));
+      console.log('💾 SALVO:', updatedSettings);
+      
+      // Força atualização do estado local
       setSettings(updatedSettings);
       
-      console.log(`🔄 Tema automático ${newState ? 'ATIVADO' : 'DESATIVADO'} e salvo`);
-      
-      if (newState) {
-        // Se ativou, aplica tema imediatamente
-        await applyAutoTheme(true);
-      }
+      // Retorna o novo estado para confirmação
+      console.log(`✅ TOGGLE COMPLETO: ${newState}`);
+      return newState;
       
     } catch (error) {
-      console.error('Erro ao alternar tema automático:', error);
-      throw error; // Propaga o erro para a UI
+      console.error('❌ ERRO no toggle:', error);
+      throw error;
+    } finally {
+      setIsUpdating(false);
     }
-  }, [settings, applyAutoTheme]);
+  }, [settings, isUpdating]);
 
   // Personaliza mapeamento de fases para temas
   const updatePhaseThemeMapping = useCallback(async (phase: CyclePhase, theme: ThemeVariant) => {
-    const newMapping = { ...settings.phaseThemeMapping, [phase]: theme };
-    await saveSettings({ phaseThemeMapping: newMapping });
-  }, [settings.phaseThemeMapping, saveSettings]);
+    try {
+      console.log(`🎨 INICIANDO atualização mapeamento: ${phase} → ${theme}`);
+      console.log(`🔍 Estado atual: autoEnabled=${settings.autoThemeEnabled}, currentPhase=${currentPhase}, targetPhase=${phase}`);
+      
+      // Primeiro, atualiza o mapeamento
+      const newMapping = { ...settings.phaseThemeMapping, [phase]: theme };
+      console.log('📝 Novo mapeamento:', newMapping);
+      
+      // Salva o novo mapeamento
+      await saveSettings({ phaseThemeMapping: newMapping });
+      console.log('💾 Mapeamento salvo no settings');
+      
+      // Se o tema automático está ativo e estamos na fase que foi alterada, aplica imediatamente
+      if (settings.autoThemeEnabled && currentPhase === phase) {
+        console.log(`🚀 APLICANDO TEMA IMEDIATAMENTE: ${theme} para fase atual ${phase}`);
+        
+        // Salva de forma sequencial para garantir que funcione
+        await AsyncStorage.setItem('selectedThemeVariant', theme);
+        console.log('💾 selectedThemeVariant salvo:', theme);
+        
+        await AsyncStorage.setItem('themeLastChanged', Date.now().toString());
+        console.log('💾 themeLastChanged atualizado');
+        
+        // Força reload em todos os sistemas
+        await AsyncStorage.setItem('forceThemeReload', Date.now().toString());
+        console.log('🔄 forceThemeReload disparado');
+        
+        console.log(`✅ TEMA APLICADO COM SUCESSO: ${theme}`);
+      } else {
+        console.log(`⏭️ Não aplicando agora: autoEnabled=${settings.autoThemeEnabled}, isCurrentPhase=${currentPhase === phase}`);
+      }
+      
+      console.log(`✅ Mapeamento completamente atualizado: ${phase} → ${theme}`);
+    } catch (error) {
+      console.error('❌ ERRO CRÍTICO ao atualizar mapeamento:', error);
+      throw error;
+    }
+  }, [settings, currentPhase, saveSettings]);
 
   // Detecta mudança manual de tema
   const setManualOverride = useCallback(async (isManual: boolean) => {
@@ -219,21 +288,7 @@ export const useCycleBasedTheme = () => {
     });
   }, [saveSettings]);
 
-  // Inicialização
-  useEffect(() => {
-    loadSettings();
-  }, [loadSettings]);
 
-  // Verifica atualizações diárias
-  useEffect(() => {
-    if (!isLoading) {
-      checkDailyThemeUpdate();
-      
-      // Configura verificação a cada hora
-      const interval = setInterval(checkDailyThemeUpdate, 60 * 60 * 1000);
-      return () => clearInterval(interval);
-    }
-  }, [isLoading, checkDailyThemeUpdate]);
 
   return {
     // Estado

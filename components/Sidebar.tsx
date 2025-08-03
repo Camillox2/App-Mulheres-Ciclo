@@ -292,7 +292,7 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
           {/* Footer */}
           <View style={styles.footer}>
             <Text style={[styles.footerText, { color: theme.colors.text.tertiary }]}>
-              Entre Fases v1.0.0
+              Entre Fases v1.0.1
             </Text>
             <Text style={[styles.footerSubtext, { color: theme.colors.text.tertiary }]}>
               Feito com 💜 para você

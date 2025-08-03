@@ -187,7 +187,7 @@ export const useBackupSystem = () => {
               moment(Math.max(...records.map(r => moment(r.date).valueOf()))).format('YYYY-MM-DD') : 
               moment().format('YYYY-MM-DD')
           },
-          appVersion: '1.0.0'
+          appVersion: '1.0.1'
         }
       };
 

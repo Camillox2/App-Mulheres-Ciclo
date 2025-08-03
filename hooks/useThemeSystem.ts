@@ -761,38 +761,46 @@ export const useThemeSystem = () => {
     loadSettings();
   }, []);
 
-  // Listener para mudanças de tema em tempo real
+  // Listener para mudanças no selectedThemeVariant
   useEffect(() => {
     const checkForThemeChanges = async () => {
       try {
-        const lastChanged = await AsyncStorage.getItem('themeLastChanged');
-        const currentTimestamp = await AsyncStorage.getItem('currentThemeTimestamp') || '0';
-        
-        if (lastChanged && lastChanged !== currentTimestamp) {
-          await AsyncStorage.setItem('currentThemeTimestamp', lastChanged);
-          // Recarregar configurações
-          await loadSettings();
+        const savedVariant = await AsyncStorage.getItem('selectedThemeVariant');
+        if (savedVariant && savedVariant !== selectedVariant && Object.keys(THEME_VARIANTS).includes(savedVariant)) {
+          console.log(`🎨 useThemeSystem: Detectou mudança de tema: ${selectedVariant} → ${savedVariant}`);
+          setSelectedVariant(savedVariant as ThemeVariant);
         }
       } catch (error) {
         console.error('Erro ao verificar mudanças de tema:', error);
       }
     };
 
-    // Verificação mais frequente para mudanças de tema
-    const interval = setInterval(checkForThemeChanges, 100);
+    // Verifica mudanças a cada 500ms para ser mais responsivo
+    const interval = setInterval(checkForThemeChanges, 500);
     return () => clearInterval(interval);
-  }, [selectedVariant, mode]);
+  }, [selectedVariant]);
 
-  // Listener adicional para mudanças imediatas
+  // Listener para forceThemeReload
   useEffect(() => {
-    const handleStorageChange = () => {
-      loadSettings();
+    const checkForForceReload = async () => {
+      try {
+        const forceReload = await AsyncStorage.getItem('forceThemeReload');
+        const lastCheck = await AsyncStorage.getItem('lastForceReloadCheck') || '0';
+        
+        if (forceReload && forceReload !== lastCheck) {
+          console.log('🔄 useThemeSystem: Recebeu forceThemeReload, recarregando...');
+          await AsyncStorage.setItem('lastForceReloadCheck', forceReload);
+          await loadSettings();
+        }
+      } catch (error) {
+        console.error('Erro ao verificar forceThemeReload:', error);
+      }
     };
-    
-    // Simular listener de storage changes
-    const storageInterval = setInterval(handleStorageChange, 50);
-    return () => clearInterval(storageInterval);
+
+    const interval = setInterval(checkForForceReload, 200);
+    return () => clearInterval(interval);
   }, []);
+
 
   const loadSettings = async () => {
     try {

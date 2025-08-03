@@ -11,12 +11,14 @@ import {
   Animated,
   StatusBar,
   Alert,
+  Modal,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useThemeSystem, ThemeVariant } from '../hooks/useThemeSystem';
 import { CyclePhase } from '../hooks/useAdaptiveTheme';
+import { useCycleBasedTheme } from '../hooks/useCycleBasedTheme';
 
 const PHASE_INFO = {
   menstrual: {
@@ -82,7 +84,7 @@ const PhaseThemeCard: React.FC<PhaseThemeCardProps> = ({
       <View style={styles.phaseHeader}>
         <View style={styles.phaseInfo}>
           <Text style={styles.phaseIcon}>{phaseInfo.icon}</Text>
-          <View>
+          <View style={styles.phaseTextContainer}>
             <Text style={styles.phaseName}>{phaseInfo.name}</Text>
             <Text style={styles.phaseDescription}>{phaseInfo.description}</Text>
           </View>
@@ -125,30 +127,26 @@ const PhaseThemeCard: React.FC<PhaseThemeCardProps> = ({
 export default function AutoThemeSettingsScreen() {
   const { theme, isLightMode } = useThemeSystem();
   const themeSystem = useThemeSystem();
+  const cycleTheme = useCycleBasedTheme();
   const [isLoading, setIsLoading] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [localAutoThemeEnabled, setLocalAutoThemeEnabled] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successModalType, setSuccessModalType] = useState<'enabled' | 'disabled'>('enabled');
 
   const headerAnim = useRef(new Animated.Value(0)).current;
   const contentAnim = useRef(new Animated.Value(0)).current;
 
-  // Carrega o estado inicial do tema automático
-  useEffect(() => {
-    const loadInitialState = async () => {
-      try {
-        const savedSettings = await AsyncStorage.getItem('cycleThemeSettings');
-        if (savedSettings) {
-          const parsed = JSON.parse(savedSettings);
-          setLocalAutoThemeEnabled(parsed.autoThemeEnabled || false);
-          console.log('🔄 Estado inicial carregado:', parsed.autoThemeEnabled);
-        }
-      } catch (error) {
-        console.error('Erro ao carregar estado inicial:', error);
+  // Recarrega estado quando a tela ganha foco
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('🔄 Tela auto-theme-settings ganhou foco');
+      // Força um refresh do estado do cicleTheme
+      if (cycleTheme) {
+        setTimeout(() => {
+          console.log('🔄 Estado atual do auto theme:', cycleTheme.settings.autoThemeEnabled);
+        }, 100);
       }
-    };
-    
-    loadInitialState();
-  }, []);
+    }, [cycleTheme])
+  );
 
   useEffect(() => {
     Animated.stagger(200, [
@@ -165,72 +163,24 @@ export default function AutoThemeSettingsScreen() {
     ]).start();
   }, []);
 
-  // Força atualização do estado quando o componente é focado
-  useEffect(() => {
-    const forceRefresh = () => {
-      setRefreshKey(prev => prev + 1);
-    };
-    
-    const interval = setInterval(forceRefresh, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Log do estado para debug
-  useEffect(() => {
-    const cycleTheme = themeSystem?.cycleTheme;
-    const systemEnabled = cycleTheme?.isEnabled || false;
-    
-    // Atualiza o estado local quando o sistema mudar
-    setLocalAutoThemeEnabled(systemEnabled);
-    
-    console.log('🔍 Estado do tema automático:', {
-      isEnabled: systemEnabled,
-      localState: localAutoThemeEnabled,
-      refreshKey,
-      hasThemeSystem: !!themeSystem,
-      hasCycleTheme: !!cycleTheme
-    });
-  }, [refreshKey, themeSystem, localAutoThemeEnabled]);
-
   const handleToggleAutoTheme = async () => {
-    if (!themeSystem?.cycleTheme) return;
+    if (!cycleTheme || isLoading) return;
     
     setIsLoading(true);
-    const newState = !localAutoThemeEnabled;
-    
-    // Atualiza o estado local imediatamente para responsividade
-    setLocalAutoThemeEnabled(newState);
     
     try {
-      await themeSystem.cycleTheme.toggleAutoTheme();
+      console.log('🔄 UI: Executando toggle...');
       
-      // Força refresh do componente e feedback do usuário
-      setTimeout(async () => {
-        setRefreshKey(prev => prev + 1);
-        
-        // Verifica o novo estado após a mudança
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-        if (newState) {
-          Alert.alert(
-            '🌸 Tema Automático Ativado!',
-            'Agora seus temas vão mudar automaticamente conforme seu ciclo menstrual. Você pode personalizar cada fase abaixo.',
-            [{ text: 'Entendi', style: 'default' }]
-          );
-        } else {
-          Alert.alert(
-            '🎨 Tema Automático Desativado',
-            'Você voltou ao controle manual dos temas. Suas configurações personalizadas foram salvas.',
-            [{ text: 'OK', style: 'default' }]
-          );
-        }
-        
-        console.log(`🔄 Estado do tema automático após toggle: ${newState}`);
-      }, 300);
+      // Executa o toggle e confia no resultado
+      const newState = await cycleTheme.toggleAutoTheme();
+      console.log(`🔄 UI: Resultado do toggle: ${newState}`);
+      
+      // Mostra modal de sucesso baseado no resultado retornado
+      setSuccessModalType(newState ? 'enabled' : 'disabled');
+      setShowSuccessModal(true);
+      
     } catch (error) {
-      console.error('Erro ao alternar tema automático:', error);
-      // Reverte o estado local em caso de erro
-      setLocalAutoThemeEnabled(!newState);
+      console.error('❌ UI: Erro:', error);
       Alert.alert('Erro', 'Não foi possível alterar as configurações.');
     } finally {
       setIsLoading(false);
@@ -238,11 +188,31 @@ export default function AutoThemeSettingsScreen() {
   };
 
   const handlePhaseThemeChange = async (phase: CyclePhase, newTheme: ThemeVariant) => {
-    if (!themeSystem?.cycleTheme) return;
+    if (!cycleTheme) return;
     
     try {
-      await themeSystem.cycleTheme.updatePhaseMapping(phase, newTheme);
+      console.log(`🔄 UI: Alterando tema da fase ${phase} para ${newTheme}`);
+      
+      // Atualiza o mapeamento
+      await cycleTheme.updatePhaseThemeMapping(phase, newTheme);
+      
+      // Força atualização do tema se necessário
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      console.log(`✅ UI: Tema da fase ${phase} alterado para ${newTheme}`);
+      
+      // Mostra feedback visual discreto
+      if (cycleTheme.currentPhase === phase && cycleTheme.settings.autoThemeEnabled) {
+        // Se mudou a fase atual, mostra confirmação
+        setSuccessModalType('enabled');
+        setShowSuccessModal(true);
+        
+        // Esconde o modal automaticamente após 1.5s
+        setTimeout(() => setShowSuccessModal(false), 1500);
+      }
+      
     } catch (error) {
+      console.error('❌ UI: Erro ao alterar tema da fase:', error);
       Alert.alert('Erro', 'Não foi possível salvar a configuração.');
     }
   };
@@ -257,8 +227,8 @@ export default function AutoThemeSettingsScreen() {
           text: 'Restaurar',
           style: 'destructive',
           onPress: async () => {
-            if (themeSystem?.cycleTheme) {
-              await themeSystem.cycleTheme.resetDefaults();
+            if (cycleTheme) {
+              await cycleTheme.resetToDefaults();
             }
           },
         },
@@ -266,11 +236,10 @@ export default function AutoThemeSettingsScreen() {
     );
   };
 
-  if (!theme || !themeSystem) return null;
+  if (!theme || !cycleTheme) return null;
 
-  const cycleTheme = themeSystem.cycleTheme;
-  // Usa o estado local para responsividade imediata
-  const isAutoThemeEnabled = localAutoThemeEnabled;
+  // Usa o estado do hook diretamente
+  const isAutoThemeEnabled = cycleTheme.settings.autoThemeEnabled;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -347,22 +316,22 @@ export default function AutoThemeSettingsScreen() {
                 </Text>
               </View>
               <Switch
-                key={`auto-theme-switch-${refreshKey}`}
                 value={isAutoThemeEnabled}
                 onValueChange={handleToggleAutoTheme}
                 trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
                 thumbColor={isAutoThemeEnabled ? '#FFFFFF' : theme.colors.text.tertiary}
                 disabled={isLoading}
+                style={{ transform: [{ scaleX: 1.2 }, { scaleY: 1.2 }] }}
               />
             </View>
 
             {isAutoThemeEnabled && (
               <View style={styles.statusContainer}>
                 <Text style={[styles.statusText, { color: theme.colors.primary }]}>
-                  ✨ Fase atual: {PHASE_INFO[themeSystem.currentPhase]?.name}
+                  ✨ Fase atual: {PHASE_INFO[cycleTheme.currentPhase]?.name}
                 </Text>
                 <Text style={[styles.statusText, { color: theme.colors.text.secondary }]}>
-                  Tema sugerido: {cycleTheme?.currentAutoTheme || 'Rose'}
+                  Tema sugerido: {cycleTheme.getThemeForPhase(cycleTheme.currentPhase)}
                 </Text>
               </View>
             )}
@@ -379,7 +348,7 @@ export default function AutoThemeSettingsScreen() {
                 <PhaseThemeCard
                   key={phase}
                   phase={phase}
-                  selectedTheme={cycleTheme?.getThemeForPhase(phase) || 'rose'}
+                  selectedTheme={cycleTheme.getThemeForPhase(phase)}
                   onThemeChange={(newTheme) => handlePhaseThemeChange(phase, newTheme)}
                   isEnabled={isAutoThemeEnabled}
                 />
@@ -416,6 +385,51 @@ export default function AutoThemeSettingsScreen() {
           </View>
         </ScrollView>
       </Animated.View>
+
+      {/* Modal de Sucesso */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={showSuccessModal}
+        onRequestClose={() => setShowSuccessModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <Animated.View style={[styles.successModal, { backgroundColor: theme.colors.surface }]}>
+            <LinearGradient
+              colors={
+                successModalType === 'enabled' 
+                  ? ['#FF6B9D20', '#FFB3D920', '#FF6B9D10']
+                  : ['#9C88FF20', '#C8B5FF20', '#9C88FF10']
+              }
+              style={styles.successModalGradient}
+            >
+              <Text style={styles.successIcon}>
+                {successModalType === 'enabled' ? '🌸' : '🎨'}
+              </Text>
+              
+              <Text style={[styles.successTitle, { color: theme.colors.text.primary }]}>
+                {successModalType === 'enabled' ? 'Tema Automático Ativado!' : 'Tema Automático Desativado'}
+              </Text>
+              
+              <Text style={[styles.successMessage, { color: theme.colors.text.secondary }]}>
+                {successModalType === 'enabled' 
+                  ? 'Agora seus temas vão mudar automaticamente conforme seu ciclo menstrual. Você pode personalizar cada fase abaixo.'
+                  : 'Você voltou ao controle manual dos temas. Suas configurações personalizadas foram salvas.'
+                }
+              </Text>
+              
+              <TouchableOpacity
+                style={[styles.successButton, { backgroundColor: theme.colors.primary }]}
+                onPress={() => setShowSuccessModal(false)}
+              >
+                <Text style={styles.successButtonText}>
+                  {successModalType === 'enabled' ? 'Vamos personalizar! ✨' : 'Perfeito! 👌'}
+                </Text>
+              </TouchableOpacity>
+            </LinearGradient>
+          </Animated.View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -520,40 +534,50 @@ const styles = StyleSheet.create({
   phaseCard: {
     backgroundColor: 'rgba(255,255,255,0.1)',
     borderRadius: 12,
-    padding: 15,
-    marginBottom: 12,
+    padding: 16,
+    marginBottom: 16,
   },
   phaseHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: 'column',
+    gap: 12,
   },
   phaseInfo: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     flex: 1,
+    marginBottom: 8,
   },
   phaseIcon: {
     fontSize: 24,
     marginRight: 12,
+    marginTop: 2,
+  },
+  phaseTextContainer: {
+    flex: 1,
+    flexShrink: 1,
   },
   phaseName: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#FFFFFF',
-    marginBottom: 2,
+    marginBottom: 4,
+    letterSpacing: 0.3,
   },
   phaseDescription: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.8)',
+    color: 'rgba(255,255,255,0.9)',
+    lineHeight: 16,
+    flexWrap: 'wrap',
+    flexShrink: 1,
   },
   themeSelector: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    minWidth: 120,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+    maxWidth: '100%',
   },
   themeSelectorIcon: {
     fontSize: 16,
@@ -561,22 +585,25 @@ const styles = StyleSheet.create({
   },
   themeSelectorText: {
     color: 'white',
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
+    flexShrink: 1,
   },
   themePicker: {
-    marginTop: 12,
+    marginTop: 16,
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 10,
+    justifyContent: 'flex-start',
   },
   themeOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
     backgroundColor: 'rgba(255,255,255,0.1)',
+    minWidth: 100,
   },
   themeOptionSelected: {
     backgroundColor: 'rgba(255,255,255,0.3)',
@@ -587,8 +614,9 @@ const styles = StyleSheet.create({
   },
   themeOptionText: {
     color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '500',
+    fontSize: 13,
+    fontWeight: '600',
+    flexShrink: 1,
   },
   resetButton: {
     borderWidth: 1.5,
@@ -621,5 +649,64 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     marginBottom: 8,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  successModal: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: 24,
+    overflow: 'hidden',
+    elevation: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+  },
+  successModalGradient: {
+    padding: 32,
+    alignItems: 'center',
+  },
+  successIcon: {
+    fontSize: 64,
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  successTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 16,
+    letterSpacing: 0.5,
+  },
+  successMessage: {
+    fontSize: 16,
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 28,
+    paddingHorizontal: 8,
+  },
+  successButton: {
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    minWidth: 200,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  successButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    letterSpacing: 0.3,
   },
 });

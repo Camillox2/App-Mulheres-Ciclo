@@ -57,6 +57,9 @@ interface AdvancedStats {
   monthlyTrends: { month: string; avgCycle: number; symptoms: number }[];
   predictedNextPeriod: string;
   fertileWindow: { start: string; end: string };
+  currentPhase: { name: string; day: number };
+  correlations: { symptom: string; mood: string; count: number }[];
+  futureCycles: { start: string; end: string }[];
 }
 
 type TabType = 'overview' | 'trends' | 'insights' | 'predictions';
@@ -136,7 +139,7 @@ export default function SuperAnalyticsScreen() {
       ]);
 
       if (!cycleDataStr && !recordsStr) {
-        setError('Nenhum dado encontrado. Comece registrando seus dados para ver análises detalhadas.');
+        setError('Não encontramos dados para análise. Por favor, registre seus ciclos e sintomas para que possamos gerar seus insights.');
         return;
       }
 
@@ -145,17 +148,17 @@ export default function SuperAnalyticsScreen() {
 
       // Verificação adicional para garantir que records é um array válido
       if (!Array.isArray(records)) {
-        setError('Dados de registros corrompidos. Tente recarregar o app.');
+        setError('Houve um problema ao carregar seus registros. Por favor, tente recarregar a página.');
         return;
       }
 
       if (records.length < 1) {
-        setError('Dados insuficientes. Registre pelo menos 1 dia para ver análises completas.');
+        setError('Você precisa de pelo menos um registro para que a análise seja gerada. Continue registrando seus dados.');
         return;
       }
 
       if (!cycleData) {
-        setError('Dados do ciclo não encontrados. Configure seus dados na tela inicial.');
+        setError('Não encontramos seus dados de ciclo. Por favor, configure seu ciclo na tela inicial para que possamos gerar suas análises.');
         return;
       }
 
@@ -228,6 +231,12 @@ export default function SuperAnalyticsScreen() {
     // Predições
     const { predictedNextPeriod, fertileWindow } = calculatePredictions(cycleData, averageCycleLength);
 
+    const currentPhase = calculateCurrentPhase(cycleData, averageCycleLength);
+
+    const correlations = analyzeCorrelations(filteredRecords);
+
+    const futureCycles = predictFutureCycles(cycleData, averageCycleLength);
+
     return {
       totalCycles: cycles.length,
       averageCycleLength,
@@ -244,7 +253,10 @@ export default function SuperAnalyticsScreen() {
       riskFactors,
       monthlyTrends,
       predictedNextPeriod,
-      fertileWindow
+      fertileWindow,
+      currentPhase,
+      correlations,
+      futureCycles,
     };
   }, [selectedPeriod]);
 
@@ -535,6 +547,65 @@ export default function SuperAnalyticsScreen() {
     };
   };
 
+  const calculateCurrentPhase = (cycleData: CycleData | null, avgLength: number) => {
+    if (!cycleData) {
+      return { name: 'Desconhecida', day: 0 };
+    }
+
+    const today = moment();
+    const lastPeriod = moment(cycleData.lastPeriodDate);
+    const daysSinceLastPeriod = today.diff(lastPeriod, 'days');
+    const cycleDay = (daysSinceLastPeriod % avgLength) + 1;
+
+    if (cycleDay <= 5) return { name: 'Menstrual', day: cycleDay };
+    if (cycleDay <= 13) return { name: 'Folicular', day: cycleDay };
+    if (cycleDay <= 16) return { name: 'Ovulatória', day: cycleDay };
+    return { name: 'Lútea', day: cycleDay };
+  };
+
+  const analyzeCorrelations = (records: DailyRecord[]) => {
+    const correlations: { [key: string]: { [mood: string]: number } } = {};
+
+    records.forEach(record => {
+      if (record.symptoms && record.mood) {
+        record.symptoms.forEach(symptom => {
+          if (!correlations[symptom]) {
+            correlations[symptom] = {};
+          }
+          correlations[symptom][record.mood] = (correlations[symptom][record.mood] || 0) + 1;
+        });
+      }
+    });
+
+    const correlationList = Object.entries(correlations)
+      .flatMap(([symptom, moods]) =>
+        Object.entries(moods).map(([mood, count]) => ({ symptom, mood, count }))
+      )
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+
+    return correlationList;
+  };
+
+  const predictFutureCycles = (cycleData: CycleData | null, avgLength: number) => {
+    if (!cycleData) {
+      return [];
+    }
+
+    const lastPeriod = moment(cycleData.lastPeriodDate);
+    const futureCycles = [];
+
+    for (let i = 1; i <= 3; i++) {
+      const nextPeriod = lastPeriod.clone().add(avgLength * i, 'days');
+      futureCycles.push({
+        start: nextPeriod.format('DD/MM/YYYY'),
+        end: nextPeriod.clone().add(5, 'days').format('DD/MM/YYYY'),
+      });
+    }
+
+    return futureCycles;
+  };
+
   const showModal = (type: string, data: any) => {
     setModalContent({ type, data });
     setModalVisible(true);
@@ -606,7 +677,7 @@ Entre Fases - Seu companheiro inteligente`;
             Analisando seus dados...
           </Text>
           <Text style={[styles.loadingSubtext, { color: theme.colors.text.secondary }]}>
-            Gerando insights inteligentes sobre seu ciclo
+            Estamos preparando suas análises avançadas. Isso pode levar alguns segundos...
           </Text>
           
           {/* Indicador de progresso */}
@@ -838,7 +909,11 @@ Entre Fases - Seu companheiro inteligente`;
                  modalContent?.type === 'quality' ? '📊 Qualidade dos Dados' :
                  modalContent?.type === 'symptoms' ? '🔍 Análise de Sintomas' :
                  modalContent?.type === 'mood' ? '😊 Análise de Humor' :
-                 modalContent?.type === 'regularity' ? '🎯 Regularidade' :
+                 modalContent?.type === 'regularity' ? '🎯 Regularidade do Ciclo' :
+                 modalContent?.type === 'cycles_analyzed' ? '📅 Ciclos Analisados' :
+                 modalContent?.type === 'average_length' ? '⏱️ Duração Média' :
+                 modalContent?.type === 'variation' ? '📈 Variação do Ciclo' :
+                 modalContent?.type === 'current_phase' ? '🌸 Fase Atual do Ciclo' :
                  modalContent?.type === 'predictions' ? '🔮 Predições' :
                  'Informações'}
               </Text>
@@ -889,11 +964,20 @@ const OverviewTab: React.FC<{ stats: AdvancedStats; theme: any; onShowModal: (ty
     {/* Stats Grid Responsivo */}
     <View style={[styles.statsGrid, isTablet && styles.statsGridTablet]}>
       <StatCard
+        title="Fase Atual"
+        value={`${stats.currentPhase.name} - Dia ${stats.currentPhase.day}`}
+        icon="🌸"
+        color={theme.colors.primary}
+        theme={theme}
+        onPress={() => onShowModal('current_phase', { phase: stats.currentPhase })}
+      />
+      <StatCard
         title="Ciclos Analisados"
         value={stats.totalCycles}
         icon="📅"
         color={theme.colors.secondary}
         theme={theme}
+        onPress={() => onShowModal('cycles_analyzed', { total: stats.totalCycles })}
       />
       <StatCard
         title="Duração Média"
@@ -901,6 +985,7 @@ const OverviewTab: React.FC<{ stats: AdvancedStats; theme: any; onShowModal: (ty
         icon="⏱️"
         color={theme.colors.accent}
         theme={theme}
+        onPress={() => onShowModal('average_length', { avg: stats.averageCycleLength })}
       />
       <StatCard
         title="Variação"
@@ -908,15 +993,15 @@ const OverviewTab: React.FC<{ stats: AdvancedStats; theme: any; onShowModal: (ty
         icon="📈"
         color={theme.colors.primary}
         theme={theme}
+        onPress={() => onShowModal('variation', { variation: stats.cycleLengthVariation })}
       />
       <StatCard
         title="Regularidade"
         value={getRegularityText(stats.cycleRegularity)}
         icon="🎯"
         color={getHealthScoreColor(stats.healthScore)}
-        small={!isTablet}
         theme={theme}
-        onPress={() => onShowModal('regularity', { regularity: stats.cycleRegularity })}
+        onPress={() => onShowModal('regularity', { regularity: stats.cycleRegularity, variation: stats.cycleLengthVariation })}
       />
     </View>
 
@@ -991,6 +1076,8 @@ const InsightsTab: React.FC<{ stats: AdvancedStats; theme: any; onShowModal: (ty
         onPress={() => onShowModal('risks', { risks: stats.riskFactors })}
       />
     )}
+
+    <CorrelationsCard correlations={stats.correlations} theme={theme} />
   </View>
 );
 
@@ -1021,6 +1108,8 @@ const PredictionsTab: React.FC<{ stats: AdvancedStats; theme: any; onShowModal: 
       theme={theme}
       onPress={() => onShowModal('cycle-predictions', { stats })}
     />
+
+    <FutureCyclesCard futureCycles={stats.futureCycles} theme={theme} />
   </View>
 );
 
@@ -1083,16 +1172,15 @@ const StatCard: React.FC<{
   icon: string;
   color: string;
   theme: any;
-  small?: boolean;
   onPress?: () => void;
-}> = ({ title, value, icon, color, theme, small = false, onPress }) => {
+  small?: boolean;
+}> = ({ title, value, icon, color, theme, onPress, small }) => {
   
   return (
     <TouchableOpacity 
       style={[
         styles.statCard, 
-        { backgroundColor: theme.colors.surface },
-        small && styles.statCardSmall
+        { backgroundColor: theme.colors.surface }
       ]}
       onPress={onPress}
       activeOpacity={onPress ? 0.7 : 1}
@@ -1103,7 +1191,7 @@ const StatCard: React.FC<{
       <Text style={[styles.statTitle, { color: theme.colors.text.secondary }]}>
         {title}
       </Text>
-      <Text style={[styles.statValue, { color }, small && styles.statValueSmall]}>
+      <Text style={[styles.statValue, { color }]}>
         {value}
       </Text>
     </TouchableOpacity>
@@ -1117,6 +1205,29 @@ const CycleChart: React.FC<{
   theme: any;
   onPress?: () => void;
 }> = ({ longestCycle, shortestCycle, averageCycle, theme, onPress }) => {
+  const shortestAnim = useRef(new Animated.Value(0)).current;
+  const averageAnim = useRef(new Animated.Value(0)).current;
+  const longestAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.stagger(100, [
+      Animated.timing(shortestAnim, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+      Animated.timing(averageAnim, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+      Animated.timing(longestAnim, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
   
   return (
     <TouchableOpacity 
@@ -1142,7 +1253,8 @@ const CycleChart: React.FC<{
                 styles.bar, 
                 { 
                   backgroundColor: theme.colors.primary,
-                  width: `${(shortestCycle / 40) * 100}%`
+                  width: `${(shortestCycle / 40) * 100}%`,
+                  transform: [{ scaleX: shortestAnim }]
                 }
               ]} 
             />
@@ -1162,7 +1274,8 @@ const CycleChart: React.FC<{
                 styles.bar, 
                 { 
                   backgroundColor: theme.colors.secondary,
-                  width: `${(averageCycle / 40) * 100}%`
+                  width: `${(averageCycle / 40) * 100}%`,
+                  transform: [{ scaleX: averageAnim }]
                 }
               ]} 
             />
@@ -1182,7 +1295,8 @@ const CycleChart: React.FC<{
                 styles.bar, 
                 { 
                   backgroundColor: theme.colors.accent,
-                  width: `${(longestCycle / 40) * 100}%`
+                  width: `${(longestCycle / 40) * 100}%`,
+                  transform: [{ scaleX: longestAnim }]
                 }
               ]} 
             />
@@ -1557,6 +1671,58 @@ const RiskAssessmentCard: React.FC<{
   </TouchableOpacity>
 );
 
+const CorrelationsCard: React.FC<{
+  correlations: { symptom: string; mood: string; count: number }[];
+  theme: any;
+}> = ({ correlations, theme }) => (
+  <View style={[styles.analysisCard, { backgroundColor: theme.colors.surface }]}>
+    <View style={styles.analysisHeader}>
+      <Text style={[styles.analysisTitle, { color: theme.colors.text.primary }]}>
+        🔗 Correlações Chave
+      </Text>
+    </View>
+    <View style={styles.correlationsList}>
+      {correlations.map((correlation, index) => (
+        <View key={index} style={styles.correlationItem}>
+          <Text style={[styles.correlationText, { color: theme.colors.text.secondary }]}>
+            <Text style={{ fontWeight: 'bold', color: theme.colors.primary }}>{correlation.symptom}</Text>
+            {' '}
+            parece estar associado a
+            {' '}
+            <Text style={{ fontWeight: 'bold', color: theme.colors.secondary }}>
+              {correlation.mood}
+            </Text>
+            {' '}
+            ({correlation.count} {correlation.count > 1 ? 'vezes' : 'vez'})
+          </Text>
+        </View>
+      ))}
+    </View>
+  </View>
+);
+
+const FutureCyclesCard: React.FC<{
+  futureCycles: { start: string; end: string }[];
+  theme: any;
+}> = ({ futureCycles, theme }) => (
+  <View style={[styles.analysisCard, { backgroundColor: theme.colors.surface }]}>
+    <View style={styles.analysisHeader}>
+      <Text style={[styles.analysisTitle, { color: theme.colors.text.primary }]}>
+        🗓️ Próximos 3 Ciclos
+      </Text>
+    </View>
+    <View style={styles.futureCyclesList}>
+      {futureCycles.map((cycle, index) => (
+        <View key={index} style={styles.futureCycleItem}>
+          <Text style={[styles.futureCycleText, { color: theme.colors.text.secondary }]}>
+            <Text style={{ fontWeight: 'bold', color: theme.colors.primary }}>{index + 1}º Ciclo:</Text> {cycle.start} - {cycle.end}
+          </Text>
+        </View>
+      ))}
+    </View>
+  </View>
+);
+
 const PredictionCard: React.FC<{
   title: string;
   prediction: string;
@@ -1692,30 +1858,68 @@ const ModalContent: React.FC<{ content: any; theme: any }> = ({ content, theme }
         </View>
       );
     
-    case 'symptoms':
+    case 'current_phase':
       return (
         <View>
           <Text style={[styles.modalText, { color: theme.colors.text.primary }]}>
-            Análise Detalhada de Sintomas
+            Você está na Fase {content.data.phase.name}, dia {content.data.phase.day}.
           </Text>
           <Text style={[styles.modalDescription, { color: theme.colors.text.secondary }]}>
-            Seus sintomas mais frequentes e suas tendências ao longo do tempo.
+            A fase {content.data.phase.name} é caracterizada por... (WIP)
           </Text>
-          <FlatList
-            data={content.data.symptoms}
-            keyExtractor={(item, index) => index.toString()}
-            renderItem={({ item }) => (
-              <View style={styles.modalSymptomItem}>
-                <Text style={[styles.modalSymptomName, { color: theme.colors.text.primary }]}>
-                  {item.name}
-                </Text>
-                <Text style={[styles.modalSymptomFreq, { color: theme.colors.text.secondary }]}>
-                  {item.frequency}% • {item.trend === 'up' ? '📈 Aumentando' : 
-                                      item.trend === 'down' ? '📉 Diminuindo' : '➡️ Estável'}
-                </Text>
-              </View>
-            )}
-          />
+        </View>
+      );
+    case 'variation':
+      return (
+        <View>
+          <Text style={[styles.modalText, { color: theme.colors.text.primary }]}>
+            Variação do Ciclo: ±{content.data.variation} dias
+          </Text>
+          <Text style={[styles.modalDescription, { color: theme.colors.text.secondary }]}>
+            Seus ciclos variam em média {content.data.variation} dias. Pequenas variações são normais, mas grandes variações podem indicar irregularidades.
+          </Text>
+        </View>
+      );
+    case 'average_length':
+      return (
+        <View>
+          <Text style={[styles.modalText, { color: theme.colors.text.primary }]}>
+            Duração Média do Ciclo: {content.data.avg} dias
+          </Text>
+          <Text style={[styles.modalDescription, { color: theme.colors.text.secondary }]}>
+            A duração média do seu ciclo é de {content.data.avg} dias. Um ciclo saudável geralmente varia entre 21 e 35 dias.
+          </Text>
+        </View>
+      );
+    case 'cycles_analyzed':
+      return (
+        <View>
+          <Text style={[styles.modalText, { color: theme.colors.text.primary }]}>
+            Total de Ciclos Analisados: {content.data.total}
+          </Text>
+          <Text style={[styles.modalDescription, { color: theme.colors.text.secondary }]}>
+            Analisamos {content.data.total} ciclos completos para gerar seus insights. Quanto mais dados, mais precisas as análises.
+          </Text>
+        </View>
+      );
+    case 'regularity':
+      return (
+        <View>
+          <Text style={[styles.modalText, { color: theme.colors.text.primary }]}>
+            Regularidade: {getRegularityText(content.data.regularity)}
+          </Text>
+          <Text style={[styles.modalDescription, { color: theme.colors.text.secondary }]}>
+            A variação do seu ciclo é de aproximadamente ±{content.data.variation} dias. Variações de até 7 dias são consideradas normais.
+          </Text>
+          <View style={styles.modalTips}>
+            <Text style={[styles.modalTipsTitle, { color: theme.colors.text.primary }]}>💡 O que isso significa:</Text>
+            <Text style={[styles.modalTip, { color: theme.colors.text.secondary }]}>
+              • Ciclos regulares indicam um equilíbrio hormonal saudável.
+            </Text>
+            <Text style={[styles.modalTip, { color: theme.colors.text.secondary }]}>
+              • Irregularidades podem ser causadas por estresse, dieta ou outras condições.
+            </Text>
+          </View>
         </View>
       );
     
@@ -1980,7 +2184,8 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   statCard: {
-    width: (width - 44) / 2,
+    flex: 1,
+    minWidth: (width - 64) / 2.5,
     padding: 16,
     borderRadius: 16,
     alignItems: 'center',
@@ -1989,10 +2194,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 3,
-  },
-  statCardSmall: {
-    width: (width - 56) / 3,
-    padding: 12,
   },
   statIcon: {
     width: 50,
@@ -2004,6 +2205,34 @@ const styles = StyleSheet.create({
   },
   statIconText: {
     fontSize: 20,
+  },
+  correlationsList: {
+    marginTop: 12,
+    gap: 8,
+  },
+  correlationItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  correlationText: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  futureCyclesList: {
+    marginTop: 12,
+    gap: 8,
+  },
+  futureCycleItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  futureCycleText: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
   },
   statTitle: {
     fontSize: 12,

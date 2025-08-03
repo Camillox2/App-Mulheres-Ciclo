@@ -132,7 +132,7 @@ export const useSimpleBackup = () => {
         data: appData,
         metadata: {
           totalRecords: records.length,
-          appVersion: '1.0.0'
+          appVersion: '1.0.1'
         }
       };
 

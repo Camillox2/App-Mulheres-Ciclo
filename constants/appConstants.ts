@@ -6,8 +6,8 @@ import { Symptom, FlowType } from '../types';
  * Informações do aplicativo
  */
 export const APP_INFO = {
-  name: 'EntrePhases',
-  version: '1.0.0',
+  name: 'Entre Fases',
+  version: '1.0.1',
   description: 'Seu companheiro inteligente para acompanhar o ciclo menstrual',
   tagline: 'Conectada com seu ciclo',
 } as const;
