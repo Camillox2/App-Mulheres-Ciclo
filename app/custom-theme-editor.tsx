@@ -183,10 +183,14 @@ export default function CustomThemeEditorScreen() {
       themes.push(themeToSave);
       await AsyncStorage.setItem('customThemes', JSON.stringify(themes));
 
+      // Força atualização global dos temas
+      await AsyncStorage.setItem('forceThemeReload', Date.now().toString());
+
       Alert.alert(
         '✨ Tema Salvo!',
         `Seu tema "${themeName}" foi salvo com sucesso. Você pode aplicá-lo na galeria de temas.`,
         [
+          { text: 'Aplicar Agora', onPress: () => applyThemeNow(themeToSave) },
           { text: 'Ver Galeria', onPress: () => router.push('/theme-gallery') },
           { text: 'Continuar Editando', style: 'cancel' },
         ]
@@ -195,6 +199,25 @@ export default function CustomThemeEditorScreen() {
       setShowSaveModal(false);
     } catch (error) {
       Alert.alert('Erro', 'Não foi possível salvar o tema.');
+    }
+  };
+
+  const applyThemeNow = async (theme: CustomTheme) => {
+    try {
+      // Remove tema sazonal se ativo
+      await AsyncStorage.removeItem('activeSeasonalTheme');
+      
+      // Aplica o tema customizado como tema ativo
+      await AsyncStorage.setItem('activeCustomTheme', JSON.stringify(theme));
+      await AsyncStorage.setItem('forceThemeReload', Date.now().toString());
+      
+      Alert.alert(
+        '🎨 Tema Aplicado!',
+        `Seu tema customizado "${theme.name}" foi aplicado globalmente. Reinicie o app para ver todas as mudanças.`,
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      Alert.alert('Erro', 'Não foi possível aplicar o tema.');
     }
   };
 

@@ -14,6 +14,7 @@ import {
 import { router } from 'expo-router';
 import { useThemeSystem } from '../hooks/useThemeSystem';
 import { AdvancedParticleSystem, ParticleType } from '../components/AdvancedParticleSystem';
+import { useGlobalParticles } from '../hooks/useGlobalParticles';
 
 const PARTICLE_TYPES: { type: ParticleType; name: string; icon: string; description: string }[] = [
   { type: 'falling', name: 'Queda Suave', icon: '🌸', description: 'Partículas caem suavemente' },
@@ -121,15 +122,30 @@ const ParticleTypeCard: React.FC<ParticleTypeCardProps> = ({
 
 export default function ParticlePlaygroundScreen() {
   const { theme, isLightMode } = useThemeSystem();
-  const [selectedType, setSelectedType] = useState<ParticleType>('falling');
-  const [isInteractive, setIsInteractive] = useState(false);
-  const [particleCount, setParticleCount] = useState(8);
-  const [windForce, setWindForce] = useState(1);
-  const [gravityStrength, setGravityStrength] = useState(1);
-  const [bounceEnabled, setBounceEnabled] = useState(true);
+  const { settings, updateSettings, loading } = useGlobalParticles();
+  
+  // Estados locais sincronizados com o hook global
+  const [selectedType, setSelectedType] = useState<ParticleType>(settings.particleType);
+  const [particleCount, setParticleCount] = useState(settings.count);
+  const [windForce, setWindForce] = useState(settings.windForce);
+  const [gravityStrength, setGravityStrength] = useState(settings.gravityStrength);
+  const [bounceEnabled, setBounceEnabled] = useState(settings.bounceEnabled);
+  const [globalEnabled, setGlobalEnabled] = useState(settings.enabled);
 
   const headerAnim = useRef(new Animated.Value(0)).current;
   const contentAnim = useRef(new Animated.Value(0)).current;
+
+  // Sincroniza estados locais quando configurações globais mudam
+  useEffect(() => {
+    if (!loading) {
+      setSelectedType(settings.particleType);
+      setParticleCount(settings.count);
+      setWindForce(settings.windForce);
+      setGravityStrength(settings.gravityStrength);
+      setBounceEnabled(settings.bounceEnabled);
+      setGlobalEnabled(settings.enabled);
+    }
+  }, [settings, loading]);
 
   useEffect(() => {
     Animated.stagger(200, [
@@ -146,6 +162,25 @@ export default function ParticlePlaygroundScreen() {
     ]).start();
   }, []);
 
+  // Salva configurações usando o hook global
+  useEffect(() => {
+    if (!loading) {
+      const newSettings = {
+        enabled: globalEnabled,
+        particleType: selectedType,
+        count: particleCount,
+        windForce,
+        gravityStrength,
+        bounceEnabled,
+      };
+      
+      // Só atualiza se houve mudança para evitar loops
+      if (JSON.stringify(newSettings) !== JSON.stringify(settings)) {
+        updateSettings(newSettings);
+      }
+    }
+  }, [selectedType, particleCount, windForce, gravityStrength, bounceEnabled, globalEnabled, loading]);
+
   const currentConfig = PARTICLE_TYPES.find(p => p.type === selectedType);
 
   if (!theme) return null;
@@ -159,7 +194,7 @@ export default function ParticlePlaygroundScreen() {
         enabled={true}
         count={particleCount}
         particleType={selectedType}
-        interactive={isInteractive}
+        interactive={false}
         windForce={windForce}
         gravityStrength={gravityStrength}
         bounceEnabled={bounceEnabled}
@@ -212,7 +247,7 @@ export default function ParticlePlaygroundScreen() {
         
         <View style={styles.statusRow}>
           <Text style={[styles.statusLabel, { color: theme.colors.text.tertiary }]}>
-            Partículas: {particleCount} • {isInteractive ? 'Interativo' : 'Automático'}
+            Partículas: {particleCount} • Automático
           </Text>
         </View>
       </View>
@@ -245,24 +280,27 @@ export default function ParticlePlaygroundScreen() {
               🎛️ Controles
             </Text>
             
-            {/* Interatividade */}
+            {/* Ativação Global */}
             <View style={styles.controlRow}>
               <Text style={[styles.controlLabel, { color: theme.colors.text.primary }]}>
-                Modo Interativo
+                🌍 Partículas Globais
               </Text>
               <Switch
-                value={isInteractive}
-                onValueChange={setIsInteractive}
+                value={globalEnabled}
+                onValueChange={setGlobalEnabled}
                 trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
-                thumbColor={isInteractive ? '#FFFFFF' : theme.colors.text.tertiary}
+                thumbColor={globalEnabled ? '#FFFFFF' : theme.colors.text.tertiary}
               />
             </View>
             
-            {isInteractive && (
+            {globalEnabled && (
               <Text style={[styles.controlHint, { color: theme.colors.text.secondary }]}>
-                💡 Toque na tela para interagir com as partículas
+                ✨ Partículas ativas em todo o app
               </Text>
             )}
+            
+            {/* Modo Interativo Removido Temporariamente */}
+            
 
             {/* Quantidade */}
             <View style={styles.controlRow}>
@@ -322,11 +360,12 @@ export default function ParticlePlaygroundScreen() {
               💡 Dicas de Uso
             </Text>
             <Text style={[styles.tipsText, { color: theme.colors.text.secondary }]}>
+              • 🌍 Ative "Partículas Globais" para ver em todo o app{'\n'}
               • Cada tipo de partícula tem física única{'\n'}
-              • Mode interativo permite tocar para influenciar o movimento{'\n'}
               • Experimente diferentes quantidades para efeitos diversos{'\n'}
               • Alguns tipos como 'Explosão' são melhores com poucas partículas{'\n'}
-              • 'Vaga-lumes' e 'Mágico' têm efeitos luminosos especiais
+              • 'Vaga-lumes' e 'Mágico' têm efeitos luminosos especiais{'\n'}
+              • As partículas são apenas decorativas e não interferem na navegação
             </Text>
           </View>
         </ScrollView>

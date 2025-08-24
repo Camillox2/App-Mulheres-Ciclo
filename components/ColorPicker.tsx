@@ -35,7 +35,7 @@ interface HSV {
   v: number; // 0-1
 }
 
-// Conversão HSV para RGB
+// Conversão HSV para RGB/HEX
 const hsvToRgb = (h: number, s: number, v: number): string => {
   const c = v * s;
   const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
@@ -61,7 +61,13 @@ const hsvToRgb = (h: number, s: number, v: number): string => {
   g = Math.round((g + m) * 255);
   b = Math.round((b + m) * 255);
   
-  return `rgb(${r}, ${g}, ${b})`;
+  // Converte para HEX
+  const toHex = (component: number) => {
+    const hex = component.toString(16);
+    return hex.length === 1 ? '0' + hex : hex;
+  };
+  
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`.toUpperCase();
 };
 
 // Conversão RGB para HSV

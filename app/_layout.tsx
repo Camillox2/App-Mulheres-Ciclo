@@ -20,6 +20,7 @@ import { GlobalHeader } from '../components/GlobalHeader';
 import { SidebarDrawer } from '../components/Sidebar';
 import { useThemeSystem } from '../hooks/useThemeSystem';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { GlobalParticleSystem } from '../components/GlobalParticleSystem';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -282,6 +283,9 @@ export default function RootLayout() {
             </Stack>
           </View>
         </Animated.View>
+
+        {/* Sistema Global de Partículas - Renderizado por último para capturar gestos */}
+        <GlobalParticleSystem />
       </GestureHandlerRootView>
     </ErrorBoundary>
   );

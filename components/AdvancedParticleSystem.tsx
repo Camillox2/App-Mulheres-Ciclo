@@ -176,6 +176,8 @@ const AdvancedParticleSystemComponent: React.FC<AdvancedParticleSystemProps> = (
 
   const config = PARTICLE_CONFIGS[particleType];
   const emojis = customEmojis || config.emojis;
+  
+  console.log('🎨 AdvancedParticleSystem - particleType:', particleType, 'config:', config);
 
   // Inicializa partículas
   const initializeParticles = () => {
@@ -186,10 +188,13 @@ const AdvancedParticleSystemComponent: React.FC<AdvancedParticleSystemProps> = (
       const initialY = particleType === 'explosion' ? height / 2 : -50;
       const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
       
-      particles.push({
+      const xValue = new Animated.Value(initialX);
+      const yValue = new Animated.Value(initialY);
+      
+      const particle: AdvancedParticle = {
         id: i,
-        x: new Animated.Value(initialX),
-        y: new Animated.Value(initialY),
+        x: xValue,
+        y: yValue,
         currentX: initialX,
         currentY: initialY,
         opacity: new Animated.Value(0),
@@ -205,7 +210,19 @@ const AdvancedParticleSystemComponent: React.FC<AdvancedParticleSystemProps> = (
         initialY,
         lifetime: config.lifetime,
         wind: config.wind * windForce,
-      });
+      };
+
+      // Adiciona listeners para manter currentX e currentY atualizados
+      if (interactive) {
+        xValue.addListener(({ value }) => {
+          particle.currentX = value;
+        });
+        yValue.addListener(({ value }) => {
+          particle.currentY = value;
+        });
+      }
+      
+      particles.push(particle);
     }
   };
 
@@ -216,23 +233,36 @@ const AdvancedParticleSystemComponent: React.FC<AdvancedParticleSystemProps> = (
     animations.length = 0;
   };
 
+  const cleanupParticles = () => {
+    // Remove listeners das partículas
+    particles.forEach(particle => {
+      particle.x.removeAllListeners();
+      particle.y.removeAllListeners();
+    });
+    stopAnimations();
+  };
+
   const createParticleAnimation = (particle: AdvancedParticle): Animated.CompositeAnimation => {
     const duration = particle.lifetime;
+    console.log('🎬 Criando animação para tipo:', particle.type);
     
-    switch (particle.type) {
-      case 'spiral':
-        return createSpiralAnimation(particle, duration);
-      case 'explosion':
-        return createExplosionAnimation(particle, duration);
-      case 'wave':
-        return createWaveAnimation(particle, duration);
-      case 'fireflies':
-        return createFireflyAnimation(particle, duration);
-      case 'floating':
-        return createFloatingAnimation(particle, duration);
-      default:
-        return createPhysicsAnimation(particle, duration);
-    }
+    // TESTE: usar sempre animação básica para ver se funciona
+    return createPhysicsAnimation(particle, duration);
+    
+    // switch (particle.type) {
+    //   case 'spiral':
+    //     return createSpiralAnimation(particle, duration);
+    //   case 'explosion':
+    //     return createExplosionAnimation(particle, duration);
+    //   case 'wave':
+    //     return createWaveAnimation(particle, duration);
+    //   case 'fireflies':
+    //     return createFireflyAnimation(particle, duration);
+    //   case 'floating':
+    //     return createFloatingAnimation(particle, duration);
+    //   default:
+    //     return createPhysicsAnimation(particle, duration);
+    // }
   };
 
   const createPhysicsAnimation = (particle: AdvancedParticle, duration: number): Animated.CompositeAnimation => {
@@ -541,8 +571,9 @@ const AdvancedParticleSystemComponent: React.FC<AdvancedParticleSystemProps> = (
   }, [enabled]);
 
   useEffect(() => {
+    cleanupParticles();
     initializeParticles();
-  }, [count, particleType, customEmojis]);
+  }, [count, particleType, customEmojis, interactive]);
 
   useEffect(() => {
     if (enabled) {
@@ -552,7 +583,7 @@ const AdvancedParticleSystemComponent: React.FC<AdvancedParticleSystemProps> = (
     }
 
     return () => {
-      stopAnimations();
+      cleanupParticles();
     };
   }, [enabled, particles.length]);
 
@@ -595,13 +626,19 @@ const AdvancedParticleSystemComponent: React.FC<AdvancedParticleSystemProps> = (
     });
   };
 
+  // Se não está habilitado, não renderiza nada para não interferir
   if (!enabled) {
     return null;
   }
 
   return (
-    <PanGestureHandler onGestureEvent={interactive ? gestureHandler : undefined}>
-      <View style={styles.container} pointerEvents={interactive ? 'auto' : 'none'}>
+    <View 
+      style={[
+        styles.container,
+        { zIndex: 1 } // zIndex baixo para não interferir
+      ]} 
+      pointerEvents="none" // SEMPRE none para não interferir
+    >
         {particles.map((particle) => (
           <Animated.View
             key={particle.id}
@@ -629,7 +666,6 @@ const AdvancedParticleSystemComponent: React.FC<AdvancedParticleSystemProps> = (
           </Animated.View>
         ))}
       </View>
-    </PanGestureHandler>
   );
 };
 
@@ -651,8 +687,8 @@ const getEmojiStyle = (type: ParticleType) => {
 const styles = StyleSheet.create({
   container: {
     ...StyleSheet.absoluteFillObject,
-    zIndex: 1,
-    pointerEvents: 'none',
+    zIndex: 1, // Valor base, será sobrescrito dinamicamente se interativo
+    pointerEvents: 'none', // Será sobrescrito dinamicamente
   },
   particle: {
     position: 'absolute',

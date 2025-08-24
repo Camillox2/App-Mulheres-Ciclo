@@ -752,6 +752,8 @@ export const useThemeSystem = () => {
   const [mode, setMode] = useState<ThemeMode>('dark');
   const [currentPhase, setCurrentPhase] = useState<CyclePhase>('menstrual');
   const [intensity, setIntensity] = useState(0.8);
+  const [seasonalTheme, setSeasonalTheme] = useState<any>(null);
+  const [customTheme, setCustomTheme] = useState<any>(null);
   
   // INTEGRAÇÃO COM SISTEMA AUTOMÁTICO
   const cycleTheme = useCycleBasedTheme();
@@ -761,10 +763,17 @@ export const useThemeSystem = () => {
     loadSettings();
   }, []);
 
-  // Listener para mudanças no selectedThemeVariant
+  // Listener para mudanças no selectedThemeVariant e temas sazonais
   useEffect(() => {
     const checkForThemeChanges = async () => {
       try {
+        // Primeiro verifica se há tema sazonal ativo
+        const activeSeasonalTheme = await AsyncStorage.getItem('activeSeasonalTheme');
+        if (activeSeasonalTheme) {
+          // Se há tema sazonal ativo, não precisa verificar mudanças normais
+          return;
+        }
+
         const savedVariant = await AsyncStorage.getItem('selectedThemeVariant');
         if (savedVariant && savedVariant !== selectedVariant && Object.keys(THEME_VARIANTS).includes(savedVariant)) {
           console.log(`🎨 useThemeSystem: Detectou mudança de tema: ${selectedVariant} → ${savedVariant}`);
@@ -780,7 +789,7 @@ export const useThemeSystem = () => {
     return () => clearInterval(interval);
   }, [selectedVariant]);
 
-  // Listener para forceThemeReload
+  // Listener para forceThemeReload e temas sazonais
   useEffect(() => {
     const checkForForceReload = async () => {
       try {
@@ -791,6 +800,21 @@ export const useThemeSystem = () => {
           console.log('🔄 useThemeSystem: Recebeu forceThemeReload, recarregando...');
           await AsyncStorage.setItem('lastForceReloadCheck', forceReload);
           await loadSettings();
+          
+          // Recarrega temas especiais também
+          const activeCustomTheme = await AsyncStorage.getItem('activeCustomTheme');
+          if (activeCustomTheme) {
+            setCustomTheme(JSON.parse(activeCustomTheme));
+            setSeasonalTheme(null);
+          } else {
+            setCustomTheme(null);
+            const activeSeasonalTheme = await AsyncStorage.getItem('activeSeasonalTheme');
+            if (activeSeasonalTheme) {
+              setSeasonalTheme(JSON.parse(activeSeasonalTheme));
+            } else {
+              setSeasonalTheme(null);
+            }
+          }
         }
       } catch (error) {
         console.error('Erro ao verificar forceThemeReload:', error);
@@ -944,8 +968,64 @@ export const useThemeSystem = () => {
     }
   }, [mode]);
 
-  // Gera tema adaptado atual
+  // Carrega temas especiais ativos (sazonal e customizado)
+  useEffect(() => {
+    const loadSpecialThemes = async () => {
+      try {
+        // Primeiro verifica tema customizado (tem prioridade)
+        const activeCustomTheme = await AsyncStorage.getItem('activeCustomTheme');
+        if (activeCustomTheme) {
+          setCustomTheme(JSON.parse(activeCustomTheme));
+          setSeasonalTheme(null);
+          return;
+        }
+
+        // Se não há tema customizado, verifica sazonal
+        const activeSeasonalTheme = await AsyncStorage.getItem('activeSeasonalTheme');
+        if (activeSeasonalTheme) {
+          setSeasonalTheme(JSON.parse(activeSeasonalTheme));
+          setCustomTheme(null);
+        } else {
+          setSeasonalTheme(null);
+          setCustomTheme(null);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar temas especiais:', error);
+        setSeasonalTheme(null);
+        setCustomTheme(null);
+      }
+    };
+
+    loadSpecialThemes();
+  }, []);
+
+  // Gera tema adaptado atual (com suporte a temas especiais)
   const getAdaptedTheme = (): AdaptedTheme => {
+    // Tema customizado tem prioridade máxima
+    if (customTheme) {
+      const customColors = customTheme.colors[mode];
+      return {
+        variant: selectedVariant,
+        mode,
+        phase: currentPhase,
+        colors: customColors,
+        intensity,
+      };
+    }
+
+    // Se há tema sazonal ativo, usa ele
+    if (seasonalTheme) {
+      const seasonalColors = seasonalTheme.colors[mode];
+      return {
+        variant: selectedVariant,
+        mode,
+        phase: currentPhase,
+        colors: seasonalColors,
+        intensity,
+      };
+    }
+
+    // Caso contrário, usa o tema normal
     const variantThemes = THEME_VARIANTS[selectedVariant];
     const phaseColors = variantThemes[mode][currentPhase];
 

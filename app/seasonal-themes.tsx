@@ -260,13 +260,17 @@ export default function SeasonalThemesScreen() {
       if (newState && !selectedSeason) {
         // Se ativou mas não tinha tema selecionado, usa o atual
         await handleSelectSeason(currentSeason);
+      } else if (!newState) {
+        // Se desativou, remove o tema sazonal ativo
+        await AsyncStorage.removeItem('activeSeasonalTheme');
+        await AsyncStorage.setItem('forceThemeReload', Date.now().toString());
       }
       
       Alert.alert(
         newState ? '🌸 Temas Sazonais Ativados!' : '⏸️ Temas Sazonais Desativados',
         newState 
           ? 'Seus temas agora mudam automaticamente conforme as estações do ano.'
-          : 'Voltando para o sistema de temas normal.',
+          : 'Voltando para o sistema de temas normal. Reinicie o app para ver as mudanças.',
         [{ text: 'OK' }]
       );
     } catch (error) {
@@ -283,11 +287,41 @@ export default function SeasonalThemesScreen() {
         await AsyncStorage.setItem('seasonalThemeEnabled', 'true');
         setSeasonalThemeEnabled(true);
       }
+
+      // Força o sistema de temas a recarregar aplicando o tema sazonal
+      const colors = getSeasonalThemeColors(season, isLightMode ? 'light' : 'dark', 'menstrual');
+      
+      // Aplica o tema sazonal como tema customizado temporário
+      const seasonalThemeData = {
+        id: `seasonal_${season}`,
+        name: SEASONAL_THEME_CONFIGS[season].name,
+        colors: {
+          light: {
+            primary: colors.primary,
+            secondary: colors.secondary,
+            accent: colors.accent,
+            background: colors.background,
+            surface: colors.surface,
+            text: colors.text,
+            particles: colors.particles,
+            border: colors.border,
+          },
+          dark: {
+            ...getSeasonalThemeColors(season, 'dark', 'menstrual'),
+          }
+        },
+        createdAt: new Date().toISOString(),
+        isSeasonal: true
+      };
+
+      // Força atualização global dos temas
+      await AsyncStorage.setItem('forceThemeReload', Date.now().toString());
+      await AsyncStorage.setItem('activeSeasonalTheme', JSON.stringify(seasonalThemeData));
       
       const config = SEASONAL_THEME_CONFIGS[season];
       Alert.alert(
         `${config.icon} Tema ${config.name} Aplicado!`,
-        `Tema sazonal "${config.name}" foi aplicado com sucesso.`,
+        `Tema sazonal "${config.name}" foi aplicado globalmente. Reinicie o app para ver todas as mudanças.`,
         [{ text: 'OK' }]
       );
     } catch (error) {
