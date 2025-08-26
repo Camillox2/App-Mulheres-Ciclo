@@ -6,7 +6,8 @@
       "Bash(npx tsc:*)",
       "Bash(npm install:*)",
       "Bash(npx expo start:*)",
-      "Bash(npx kill-port:*)"
+      "Bash(npx kill-port:*)",
+      "mcp__ide__getDiagnostics"
     ],
     "deny": []
   }

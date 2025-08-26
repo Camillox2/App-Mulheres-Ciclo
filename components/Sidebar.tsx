@@ -40,9 +40,17 @@ interface UserProfile {
 
 const menuItems = [
   { key: 'home', icon: '🏠', label: 'Início', screen: 'home' },
+  { key: 'dashboard', icon: '📊', label: 'Dashboard', screen: 'dashboard' },
   { key: 'calendar', icon: '📅', label: 'Calendário', screen: 'calendar' },
-  { key: 'records', icon: '📝', label: 'Registros', screen: 'records' },
-  { key: 'super-analytics', icon: '📈', label: 'Super Analytics', screen: 'super-analytics' },
+  { key: 'notes', icon: '📝', label: 'Anotações', screen: 'notes' },
+  { key: 'symptom-tracker', icon: '🩺', label: 'Sintomas', screen: 'symptom-tracker' },
+  { key: 'ai-chat', icon: '🤖', label: 'Chat IA', screen: 'ai-chat' },
+  { key: 'insights', icon: '🧠', label: 'Insights', screen: 'insights' },
+  { key: 'pregnancy-mode', icon: '🤰', label: 'Gravidez', screen: 'pregnancy-mode' },
+  { key: 'menopause', icon: '🌸', label: 'Menopausa', screen: 'menopause' },
+  { key: 'records', icon: '📋', label: 'Registros', screen: 'records' },
+  { key: 'data-export', icon: '💾', label: 'Backup', screen: 'data-export' },
+  { key: 'super-analytics', icon: '📈', label: 'Analytics', screen: 'super-analytics' },
   { key: 'theme-settings', icon: '🎨', label: 'Temas', screen: 'theme-settings' },
   { key: 'settings', icon: '⚙️', label: 'Configurações', screen: 'settings' },
 ];

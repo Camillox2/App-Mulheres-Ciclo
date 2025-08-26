@@ -22,11 +22,14 @@ export default function CycleSetupScreen() {
   const [lastPeriodDate, setLastPeriodDate] = useState(new Date());
   const [averageCycleLength, setAverageCycleLength] = useState(28);
   const [averagePeriodLength, setAveragePeriodLength] = useState(5);
+  const [age, setAge] = useState(25);
+  const [irregularCycle, setIrregularCycle] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const cycleLengthOptions = [21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35];
   const periodLengthOptions = [3, 4, 5, 6, 7, 8];
+  const ageOptions = [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55];
 
   const handleDateChange = (event: any, selectedDate?: Date) => {
     setShowDatePicker(false);
@@ -43,8 +46,9 @@ export default function CycleSetupScreen() {
         lastPeriodDate: lastPeriodDate.toISOString(),
         averageCycleLength,
         averagePeriodLength,
+        age,
+        irregularCycle,
         setupDate: new Date().toISOString(),
-        irregularCycle: false, // Por enquanto assumimos regular
       };
 
       await AsyncStorage.setItem('cycleData', JSON.stringify(cycleData));
@@ -175,6 +179,79 @@ export default function CycleSetupScreen() {
               </View>
               <Text style={styles.hint}>
                 Quantos dias sua menstruação costuma durar
+              </Text>
+            </View>
+
+            {/* Idade */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Qual sua idade?</Text>
+              <Text style={styles.currentValue}>{age} anos</Text>
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.horizontalOptionsContainer}
+              >
+                {ageOptions.map((ageValue) => (
+                  <TouchableOpacity
+                    key={ageValue}
+                    style={[
+                      styles.optionButton,
+                      { backgroundColor: age === ageValue ? 'white' : 'rgba(255,255,255,0.2)' }
+                    ]}
+                    onPress={() => setAge(ageValue)}
+                  >
+                    <Text style={[
+                      styles.optionText,
+                      { color: age === ageValue ? '#FF6B9D' : 'white' }
+                    ]}>
+                      {ageValue}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              <Text style={styles.hint}>
+                A idade ajuda a fazer previsões mais precisas
+              </Text>
+            </View>
+
+            {/* Ciclo Irregular */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Seu ciclo é irregular?</Text>
+              <View style={styles.toggleContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.toggleOption,
+                    { backgroundColor: !irregularCycle ? 'white' : 'rgba(255,255,255,0.2)' }
+                  ]}
+                  onPress={() => setIrregularCycle(false)}
+                >
+                  <Text style={[
+                    styles.toggleText,
+                    { color: !irregularCycle ? '#FF6B9D' : 'white' }
+                  ]}>
+                    Regular
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.toggleOption,
+                    { backgroundColor: irregularCycle ? 'white' : 'rgba(255,255,255,0.2)' }
+                  ]}
+                  onPress={() => setIrregularCycle(true)}
+                >
+                  <Text style={[
+                    styles.toggleText,
+                    { color: irregularCycle ? '#FF6B9D' : 'white' }
+                  ]}>
+                    Irregular
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.hint}>
+                {irregularCycle ? 
+                  'Ciclos irregulares variam muito em duração' : 
+                  'Ciclos regulares têm duração similar todos os meses'
+                }
               </Text>
             </View>
 
@@ -320,6 +397,28 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexWrap: 'wrap',
     paddingHorizontal: 10,
+  },
+  horizontalOptionsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  toggleContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  toggleOption: {
+    borderRadius: 20,
+    paddingVertical: 15,
+    paddingHorizontal: 30,
+    marginHorizontal: 10,
+    minWidth: 100,
+    alignItems: 'center',
+  },
+  toggleText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
   optionButton: {
     borderRadius: 20,

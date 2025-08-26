@@ -5,6 +5,8 @@ export interface CycleData {
   lastPeriodDate: string;
   averageCycleLength: number;
   averagePeriodLength: number;
+  age?: number;
+  irregularCycle?: boolean;
 }
 
 export type CyclePhase = 'menstrual' | 'postMenstrual' | 'fertile' | 'ovulation' | 'preMenstrual';
@@ -34,7 +36,7 @@ export interface DayInfo {
 const calculationCache = new Map<string, number>();
 
 /**
- * FUNÇÃO CORRIGIDA: Calcula chance de gravidez de forma determinística
+ * FUNÇÃO MELHORADA: Calcula chance de gravidez considerando idade e irregularidades
  */
 export const calculatePregnancyChance = (
   dayOfCycle: number, 
@@ -42,7 +44,7 @@ export const calculatePregnancyChance = (
   targetDate: moment.Moment
 ): number => {
   // Cria uma chave única para cache baseada na data e dados do ciclo
-  const cacheKey = `${targetDate.format('YYYY-MM-DD')}-${dayOfCycle}-${cycleData.averageCycleLength}`;
+  const cacheKey = `${targetDate.format('YYYY-MM-DD')}-${dayOfCycle}-${cycleData.averageCycleLength}-${cycleData.age}`;
   
   if (calculationCache.has(cacheKey)) {
     return calculationCache.get(cacheKey)!;
@@ -80,10 +82,40 @@ export const calculatePregnancyChance = (
     chance = 12;
   }
 
+  // Ajuste baseado na idade
+  if (cycleData.age) {
+    const age = cycleData.age;
+    let ageMultiplier = 1;
+    
+    if (age <= 25) {
+      ageMultiplier = 1.2; // Fertilidade máxima
+    } else if (age <= 30) {
+      ageMultiplier = 1.1; // Ainda muito fértil
+    } else if (age <= 35) {
+      ageMultiplier = 1.0; // Fertilidade normal
+    } else if (age <= 40) {
+      ageMultiplier = 0.8; // Declínio gradual
+    } else if (age <= 45) {
+      ageMultiplier = 0.5; // Declínio mais acentuado
+    } else {
+      ageMultiplier = 0.2; // Muito baixa
+    }
+    
+    chance *= ageMultiplier;
+  }
+
+  // Ajuste para ciclos irregulares
+  if (cycleData.irregularCycle) {
+    chance *= 0.7; // Reduz a certeza dos cálculos
+    // Adiciona mais variação para refletir a irregularidade
+    const irregularityVariation = (targetDate.dayOfYear() % 10) - 5; // -5 a +4
+    chance += irregularityVariation;
+  }
+
   // Adiciona uma pequena variação baseada na data para parecer mais natural
   // mas mantém determinístico para a mesma data
   const dateBasedVariation = (targetDate.dayOfYear() % 7) - 3; // -3 a +3
-  chance = Math.max(1, Math.min(40, chance + dateBasedVariation));
+  chance = Math.max(1, Math.min(45, chance + dateBasedVariation));
 
   // Arredonda para número inteiro
   chance = Math.round(chance);

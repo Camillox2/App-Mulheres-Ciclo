@@ -1,29 +1,27 @@
-import { useState, useEffect } from 'react';
-import {
- View,
- Text,
- StyleSheet,
- TouchableOpacity,
- ScrollView,
- SafeAreaView,
- Alert,
- Image,
- Switch,
- TextInput,
- Modal,
-} from 'react-native';
-import { router } from 'expo-router';
-import { useThemeSystem } from '../hooks/useThemeSystem';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
+import { router } from 'expo-router';
+import React, { useEffect, useState } from 'react';
 import {
- loadNotificationSettings,
- saveNotificationSettings,
- sendTestNotification,
- NotificationSettings
+    Alert,
+    Image,
+    Modal,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Switch,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from 'react-native';
+import {
+    loadNotificationSettings,
+    NotificationSettings,
+    saveNotificationSettings,
+    sendTestNotification
 } from '../hooks/notifications';
-import React from 'react';
-import { theme } from '@/constants/theme';
+import { useThemeSystem } from '../hooks/useThemeSystem';
 
 interface UserProfile {
  name: string;
@@ -48,10 +46,12 @@ export default function SettingsScreen() {
  const [editName, setEditName] = useState('');
  const [editCycleLength, setEditCycleLength] = useState(28);
  const [editPeriodLength, setEditPeriodLength] = useState(5);
+ const [widgetEnabled, setWidgetEnabled] = useState(false);
 
  useEffect(() => {
   loadUserData();
   loadNotifications();
+  loadWidgetSettings();
  }, []);
 
  const loadUserData = async () => {
@@ -82,6 +82,18 @@ export default function SettingsScreen() {
    setNotificationSettings(settings);
   } catch (error) {
    console.error('Erro ao carregar configurações de notificação:', error);
+  }
+ };
+
+ const loadWidgetSettings = async () => {
+  try {
+   const widgetData = await AsyncStorage.getItem('widgetSettings');
+   if (widgetData) {
+    const settings = JSON.parse(widgetData);
+    setWidgetEnabled(settings.enabled || false);
+   }
+  } catch (error) {
+   console.error('Erro ao carregar configurações do widget:', error);
   }
  };
 
@@ -224,7 +236,30 @@ export default function SettingsScreen() {
   updateProfileImage(undefined);
  };
 
- const updateProfileImage = async (imageUri?: string) => {
+ const handleWidgetSettingChange = async (enabled: boolean) => {
+  try {
+   const settings = { enabled };
+   await AsyncStorage.setItem('widgetSettings', JSON.stringify(settings));
+   setWidgetEnabled(enabled);
+   
+   if (enabled) {
+    Alert.alert(
+     '📱 Widget Ativado',
+     `Agora você pode adicionar o widget do Entre Fases à tela inicial do seu celular!
+
+Para adicionar:
+Android: Mantenha pressionado na tela inicial > Widgets > Entre Fases
+iOS: Mantenha pressionado na tela inicial > + > Entre Fases`,
+     [{ text: 'Entendi!' }]
+    );
+   }
+  } catch (error) {
+   console.error('Erro ao salvar configurações do widget:', error);
+   Alert.alert('Erro', 'Não foi possível salvar as configurações do widget');
+  }
+};
+
+const updateProfileImage = async (imageUri?: string) => {
   if (!userProfile) {
    Alert.alert('Erro', 'Não foi possível atualizar a foto pois o perfil não foi carregado.');
    return;
@@ -588,7 +623,39 @@ export default function SettingsScreen() {
 
     <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
      <Text style={[styles.sectionTitle, { color: theme.colors.primary }]}>
-      💾 Dados
+      � Widget
+     </Text>
+     <View style={styles.settingRow}>
+      <View style={styles.settingInfo}>
+       <Text style={[styles.settingLabel, { color: theme.colors.primary }]}>
+        Widget na Tela Inicial
+       </Text>
+       <Text style={[styles.settingDescription, { color: theme.colors.secondary }]}>
+        Mostra informações do seu ciclo na tela inicial
+       </Text>
+      </View>
+      <Switch
+       value={widgetEnabled}
+       onValueChange={handleWidgetSettingChange}
+       trackColor={{ false: '#767577', true: theme.colors.primary }}
+       thumbColor={widgetEnabled ? theme.colors.accent : '#f4f3f4'}
+      />
+     </View>
+     {widgetEnabled && (
+      <View style={styles.widgetInfo}>
+       <Text style={[styles.widgetInfoText, { color: theme.colors.secondary }]}>
+        🎯 O widget mostra sua fase atual, dias do ciclo, próxima menstruação e chance de gravidez
+       </Text>
+       <Text style={[styles.widgetInfoText, { color: theme.colors.secondary }]}>
+        📲 Toque no widget para abrir o app rapidamente
+       </Text>
+      </View>
+     )}
+    </View>
+
+    <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
+     <Text style={[styles.sectionTitle, { color: theme.colors.primary }]}>
+      �💾 Dados
      </Text>
      <TouchableOpacity
       style={[styles.dataButton, { backgroundColor: theme.colors.background }]}
@@ -1049,5 +1116,16 @@ const styles = StyleSheet.create({
   color: 'white',
   fontSize: 16,
   fontWeight: 'bold',
+ },
+ widgetInfo: {
+  marginTop: 10,
+  padding: 12,
+  backgroundColor: 'rgba(255,255,255,0.05)',
+  borderRadius: 8,
+ },
+ widgetInfoText: {
+  fontSize: 13,
+  lineHeight: 18,
+  marginBottom: 5,
  },
 });

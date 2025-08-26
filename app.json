@@ -13,14 +13,36 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "widgets": [
+        {
+          "name": "CycleWidget",
+          "displayName": "EntreFases",
+          "description": "Veja sua fase atual e próximos eventos",
+          "families": ["systemSmall", "systemMedium"],
+          "configuration": "widgets/CycleWidget",
+          "supportedSizeClasses": ["small", "medium"]
+        }
+      ]
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/logoTwo.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.camillox2.EntreFases"
+      "package": "com.camillox2.EntreFases",
+      "widgets": [
+        {
+          "name": "CycleWidget",
+          "label": "EntreFases",
+          "description": "Veja sua fase atual e próximos eventos",
+          "resizeMode": "horizontal|vertical",
+          "minWidth": "2x2",
+          "minHeight": "2x2",
+          "targetCellWidth": 2,
+          "targetCellHeight": 2
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/images/logoTwo.png"
@@ -33,6 +55,7 @@
     },
     "extra": {
       "router": {},
+      "publicGeminiKey": "AIzaSyBCvUUEBPgJX3yeHYSk6VuGgjbYaPdS1Xk",
       "eas": {
         "projectId": "b17acb1c-2b80-45f3-9517-03866e3e4413"
       }
